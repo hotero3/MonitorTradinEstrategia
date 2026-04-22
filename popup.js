@@ -296,8 +296,8 @@ function parseCoinGlassValue(str) {
 }
 
 // --- INTERVALOS ---
-setInterval(updateDashboard, 2500);
-setInterval(updateLivePrice, 3000);
+setInterval(updateDashboard, 1500);
+setInterval(updateLivePrice, 2000);
 setInterval(updateDeltaDisplay, 5000);
 updateLivePrice();
 updateDashboard();
