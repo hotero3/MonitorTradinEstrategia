@@ -54,23 +54,47 @@ async function updateDashboard() {
 
         if (current.deltaLong) {
             const deltaEl = document.getElementById('delta_val');
+            // AGREGAMOS LA DEFINICIÓN DEL CONTENEDOR
+            const container = document.getElementById('delta-container'); 
+            
             const lVal = parseCoinGlassValue(current.deltaLong);
             const sVal = parseCoinGlassValue(current.deltaShort);
             const delta = lVal - sVal;
-                        // Actualizar UI de GitHub
+            
+            // Actualizar textos
             let dDisp = Math.abs(delta) >= 1000 ? (delta/1000).toFixed(2) + "B" : delta.toFixed(1) + "M";
             deltaEl.textContent = (delta >= 0 ? "+" : "") + dDisp;
             document.getElementById('long-valor').textContent = current.deltaLong;
             document.getElementById('short-valor').textContent = current.deltaShort;
+
+            // --- LÓGICA DE ALERTA ---
+            if (Math.abs(delta) >= alertThreshold && alertThreshold > 0) {
+                // Cambiamos fondo y bordes
+                container.style.background = delta >= 0 ? "#003d21" : "#3d0000"; 
+                container.style.border = "2px solid #fff"; 
+                deltaEl.style.color = "#fff"; // Texto blanco para que resalte en la alerta
+
+                if (!isMuted && (Date.now() - lastAlertTime > 15000)) {
+                    sonarNotificacion(delta >= 0 ? 'LONG' : 'SHORT');
+                    lastAlertTime = Date.now();
+                }
+            } else {
+                // Volvemos al estado normal
+                container.style.background = "#1e222d"; 
+                container.style.border = "none";
+                container.style.borderLeft = "4px solid #f0b90b"; // Mantenemos tu estilo original
+                deltaEl.style.color = delta >= 0 ? "#00ff88" : "#ff4d4d";
+            }
         }
+
+        // Resto de indicadores
         checkMACDAlerts(current, previous);
         updateStrategyUI(current);
 
         document.getElementById('adx_vals').textContent = 
             `${Number(current.adx).toFixed(1)} | ${Number(current.dmiPlus).toFixed(1)} | ${Number(current.dmiMinus).toFixed(1)}`;
         
-        const macdFullEl = document.getElementById('macd_full_vals');
-        macdFullEl.textContent = 
+        document.getElementById('macd_full_vals').textContent = 
             `${Number(current.histogram).toFixed(2)} | ${Number(current.macdLine).toFixed(2)} | ${Number(current.signalLine).toFixed(2)}`;
         
         const revData = [...allData].reverse();
@@ -81,10 +105,10 @@ async function updateDashboard() {
 
         statusDot.style.color = '#00ff88';
     } catch (e) { 
+        console.error("Error en Dashboard:", e);
         statusDot.style.color = '#ff4d4d'; 
     }
 }
-
 // NUEVA FUNCIÓN: Alerta de Cruce de MACD
 function checkMACDAlerts(curr, prev) {
     const signalEl = document.getElementById('main-signal');
