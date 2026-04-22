@@ -51,7 +51,19 @@ async function updateDashboard() {
 
         const current = allData[0];
         const previous = allData[1];
-        
+
+        if (current.deltaLong) {
+            const deltaEl = document.getElementById('delta_val');
+            const lVal = parseCoinGlassValue(current.deltaLong);
+            const sVal = parseCoinGlassValue(current.deltaShort);
+            const delta = lVal - sVal;
+            
+            // Actualizar UI de GitHub
+            let dDisp = Math.abs(delta) >= 1000 ? (delta/1000).toFixed(2) + "B" : delta.toFixed(1) + "M";
+            deltaEl.textContent = (delta >= 0 ? "+" : "") + dDisp;
+            document.getElementById('long-valor').textContent = current.deltaLong;
+            document.getElementById('short-valor').textContent = current.deltaShort;
+        }
         checkMACDAlerts(current, previous);
         updateStrategyUI(current);
 
