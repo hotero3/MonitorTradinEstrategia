@@ -1,4 +1,4 @@
-const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbxTBJ0BC4F25dSqrtEKfgLovvFp3IVZGh_Sgbr6_BS-EjTPREba5jC7j1Ryfm28dv_hJw/exec?type=json";
+const WEB_APP_URL = "http://localhost:5000/get-indicators";
 
 let macdChart = null, adxChart = null;
 let isMuted = false, alertThreshold = 100, lastAlertTime = 0;
