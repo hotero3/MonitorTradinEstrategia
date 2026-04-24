@@ -1,4 +1,4 @@
-const WEB_APP_URL = "http://localhost:5000/get-indicators";
+const WEB_APP_URL = "https://dashboardhtrading.onrender.com";
 
 let macdChart = null, adxChart = null;
 let isMuted = false, alertThreshold = 100, lastAlertTime = 0;
