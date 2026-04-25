@@ -45,21 +45,21 @@ initAlertControls();
 async function updateDashboard() {
     const statusDot = document.getElementById('status');
     try {
-        const response = await fetch(WEB_APP_URL);
-        const allData = await response.json(); 
-        if (!allData || allData.length < 2) return;
+    const response = await fetch(WEB_APP_URL);
+    const allData = await response.json(); 
+    if (!allData || allData.length < 2) return;
 
-        const current = allData[0];
-        const previous = allData[1];
+    const current = allData[0];
+    const previous = allData[1];
 
-        if (current.deltaLong) {
-            const deltaEl = document.getElementById('delta_val');
-            // AGREGAMOS LA DEFINICIÓN DEL CONTENEDOR
-            const container = document.getElementById('delta-container'); 
-            
-            const lVal = parseCoinGlassValue(current.deltaLong);
-            const sVal = parseCoinGlassValue(current.deltaShort);
-            const delta = lVal - sVal;
+    // MODIFICACIÓN AQUÍ: Verificamos que sea un dato válido y no el marcador inicial "--"
+    if (current.deltaLong && current.deltaLong !== "--") {
+        const deltaEl = document.getElementById('delta_val');
+        const container = document.getElementById('delta-container'); 
+        
+        const lVal = parseCoinGlassValue(current.deltaLong);
+        const sVal = parseCoinGlassValue(current.deltaShort);
+        const delta = lVal - sVal;
             
             // Actualizar textos
             let dDisp = Math.abs(delta) >= 1000 ? (delta/1000).toFixed(2) + "B" : delta.toFixed(1) + "M";
