@@ -7,6 +7,12 @@ let lastDelta = null;
 let lastHistSign = null;
 let currentPrice = 0;
 let entryData = { price: 0, type: null };
+// -- VARIABLES DE MINIMOS Y ALTOS
+let isTradeActive = false;
+let entryPrice = 0;
+let maxReached = 0; // El pico más alto (MFE)
+let minReached = 0; // El pico más bajo (MAE)
+let tradeType = ""; // "LONG" o "SHORT"
 
 // --- INICIALIZACIÓN Y ADAPTACIÓN LOCALSTORAGE ---
 function initAlertControls() {
@@ -40,6 +46,18 @@ function initAlertControls() {
     };
 }
 initAlertControls();
+
+// --- CODIGO PARA MINIMO Y MAXIMO----
+function startTradeTracking(type, currentPrice) {
+    isTradeActive = true;
+    tradeType = type;
+    entryPrice = currentPrice;
+    maxReached = currentPrice;
+    minReached = currentPrice;
+    
+    console.log(`Trade ${type} iniciado en ${entryPrice}`);
+    updateTradeUI(); // Función para refrescar los numeritos en pantalla
+}
 
 // --- LÓGICA DE DASHBOARD ---
 async function updateDashboard() {
@@ -225,52 +243,99 @@ function renderCharts(data, labels) {
     }
 }
 
-// --- LOGICA PRECIO Y PNL ---
+// --- LOGICA PRECIO Y PNL INCLUYENDO PICOS MAXIMO Y MINIMO ---
 async function updateLivePrice() {
     try {
         const response = await fetch('https://api.binance.com/api/v3/ticker/price?symbol=BTCUSDT');
         const data = await response.json();
         currentPrice = parseFloat(data.price);
+        
+        // Actualizar precio en pantalla
         document.getElementById('live-price').textContent = currentPrice.toLocaleString('en-US', { minimumFractionDigits: 2 });
-        if (entryData.type) calculatePnL();
+        
+        // Si hay un trade activo, actualizar PnL y Picos
+        if (entryData.type) {
+            updatePicos(currentPrice);
+            calculatePnL();
+        }
     } catch (e) { console.error("Error Binance:", e); }
+}
+
+function updatePicos(price) {
+    let updated = false;
+    
+    // Si es la primera vez que corre tras presionar el botón
+    if (entryData.max === 0) { entryData.max = price; updated = true; }
+    if (entryData.min === 0) { entryData.min = price; updated = true; }
+
+    // Lógica de máximos y mínimos
+    if (price > entryData.max) { entryData.max = price; updated = true; }
+    if (price < entryData.min) { entryData.min = price; updated = true; }
+
+    // Guardar si hubo cambios para no perder los picos al refrescar
+    if (updated) {
+        localStorage.setItem('active_trade', JSON.stringify(entryData));
+        renderPicosUI();
+    }
 }
 
 function calculatePnL() {
     if (!entryData.price) return;
-    let pnl = ((entryData.type === 'LONG' ? (currentPrice - entryData.price) : (entryData.price - currentPrice)) / entryData.price) * 100;
+    
+    // PnL Real (sin apalancamiento aún)
+    let pnlBase = ((entryData.type === 'LONG' ? (currentPrice - entryData.price) : (entryData.price - currentPrice)) / entryData.price);
+    let pnlPercent = pnlBase * 100 * 20; // x20 aplicado
     
     const pnlEl = document.getElementById('pnl-val');
-    pnlEl.textContent = (pnl >= 0 ? "+" : "") + (pnl * 20).toFixed(2) + "%"; // Factor x20 incluido
-    pnlEl.style.color = pnl >= 0 ? "#00ff88" : "#ff4d4d";
+    pnlEl.textContent = (pnlPercent >= 0 ? "+" : "") + pnlPercent.toFixed(2) + "%";
+    pnlEl.style.color = pnlPercent >= 0 ? "#00ff88" : "#ff4d4d";
+}
+
+function renderPicosUI() {
+    // Calculamos la variación de los picos respecto al precio de entrada (x20)
+    const calcVar = (pico) => (((entryData.type === 'LONG' ? (pico - entryData.price) : (entryData.price - pico)) / entryData.price) * 100 * 20).toFixed(2);
+
+    // Actualizamos los elementos en el HTML
+    document.getElementById('max-val').textContent = `Pico Máx: ${entryData.max.toFixed(2)} (${calcVar(entryData.max)}%)`;
+    document.getElementById('min-val').textContent = `Pico Mín: ${entryData.min.toFixed(2)} (${calcVar(entryData.min)}%)`;
+}
+
+function saveTrade(type) {
+    // Inicializamos con el precio actual y picos en el precio de entrada
+    entryData = { 
+        price: currentPrice, 
+        type: type, 
+        max: currentPrice, 
+        min: currentPrice 
+    };
+    localStorage.setItem('active_trade', JSON.stringify(entryData));
+    showTradeUI();
+    renderPicosUI();
 }
 
 document.getElementById('btn-long').onclick = () => saveTrade('LONG');
 document.getElementById('btn-short').onclick = () => saveTrade('SHORT');
 document.getElementById('btn-clear').onclick = () => {
     localStorage.removeItem('active_trade');
-    entryData = { price: 0, type: null };
+    entryData = { price: 0, type: null, max: 0, min: 0 };
     document.getElementById('pnl-display').style.display = 'none';
 };
-
-function saveTrade(type) {
-    entryData = { price: currentPrice, type: type };
-    localStorage.setItem('active_trade', JSON.stringify(entryData));
-    showTradeUI();
-}
 
 function showTradeUI() {
     document.getElementById('pnl-display').style.display = 'block';
     const info = document.getElementById('entry-info');
     info.textContent = `${entryData.type} @ ${entryData.price.toFixed(2)}`;
     info.style.color = entryData.type === 'LONG' ? '#00ff88' : '#ff4d4d';
+    renderPicosUI();
 }
 
-// Cargar trade guardado
+// Al cargar la página:
 const savedTrade = localStorage.getItem('active_trade');
 if (savedTrade) {
     entryData = JSON.parse(savedTrade);
-    showTradeUI();
+    showTradeUI(); 
+} else {
+    entryData = { price: 0, type: null, max: 0, min: 0 };
 }
 
 // --- AUDIO ---
