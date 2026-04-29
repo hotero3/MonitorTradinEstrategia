@@ -35,10 +35,22 @@
         <button id="btn-short" style="flex: 1; background: #ff4d4d; color: #fff; border: none; border-radius: 2px; cursor: pointer; font-weight: bold; font-size: 9px; padding: 3px;">SHORT</button>
         <button id="btn-clear" style="background: #333; color: #eee; border: none; border-radius: 2px; padding: 3px 6px; cursor: pointer;">×</button>
     </div>
-    <div id="pnl-display" style="display: none; margin-top: 6px; border-top: 1px solid #363a45; padding-top: 4px; font-size: 10px;">
-        <span id="entry-info" style="color: #b2b5be;"></span>
-        <span id="pnl-val" style="float: right; font-family: monospace; font-weight: bold;">0.00%</span>
+    <div id="pnl-display" style="display:none; margin-top: 8px; padding-top: 8px; border-top: 1px solid #333; text-align: center;">
+    <div id="entry-info" style="font-size: 10px; margin-bottom: 2px;"></div>
+    
+    <div id="pnl-val" style="font-size: 20px; font-weight: bold; margin-bottom: 6px;">0.00%</div>
+    
+    <div id="picos-container" style="font-size: 9px; display: flex; flex-direction: column; gap: 2px; background: rgba(0,0,0,0.2); padding: 5px; border-radius: 4px;">
+        <div style="display: flex; justify-content: space-between;">
+            <span style="color: #787b86;">Pico Máximo:</span>
+            <span id="max-val" style="color: #00ff88; font-family: monospace;">--</span>
+        </div>
+        <div style="display: flex; justify-content: space-between;">
+            <span style="color: #787b86;">Pico Mínimo:</span>
+            <span id="min-val" style="color: #ff4d4d; font-family: monospace;">--</span>
+        </div>
     </div>
+</div>
 </div>
 
   <div id="dashboard">
