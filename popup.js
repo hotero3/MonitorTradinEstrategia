@@ -6,8 +6,7 @@ const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
 let lastDelta = null;
 let lastHistSign = null;
 let currentPrice = 0;
-let entryData = { price: 0, type: null };
-// -- VARIABLES DE MINIMOS Y ALTOS
+let entryData = JSON.parse(localStorage.getItem('active_trade')) || { price: 0, type: null, max: 0, min: 0 };// -- VARIABLES DE MINIMOS Y ALTOS
 let isTradeActive = false;
 let entryPrice = 0;
 let maxReached = 0; // El pico más alto (MFE)
@@ -292,12 +291,18 @@ function calculatePnL() {
 }
 
 function renderPicosUI() {
-    // Calculamos la variación de los picos respecto al precio de entrada (x20)
-    const calcVar = (pico) => (((entryData.type === 'LONG' ? (pico - entryData.price) : (entryData.price - pico)) / entryData.price) * 100 * 20).toFixed(2);
+    // Si no hay datos, no intentamos formatear
+    if (!entryData.max || !entryData.min || !entryData.price) return;
 
-    // Actualizamos los elementos en el HTML
-    document.getElementById('max-val').textContent = `Pico Máx: ${entryData.max.toFixed(2)} (${calcVar(entryData.max)}%)`;
-    document.getElementById('min-val').textContent = `Pico Mín: ${entryData.min.toFixed(2)} (${calcVar(entryData.min)}%)`;
+    // Calculamos la variación de los picos respecto al precio de entrada (x20)
+    const calcVar = (pico) => {
+        let v = ((entryData.type === 'LONG' ? (pico - entryData.price) : (entryData.price - pico)) / entryData.price) * 100 * 20;
+        return v.toFixed(2);
+    };
+
+    // Actualizamos los elementos en el HTML con seguridad
+    document.getElementById('max-val').textContent = `${entryData.max.toFixed(2)} (${calcVar(entryData.max)}%)`;
+    document.getElementById('min-val').textContent = `${entryData.min.toFixed(2)} (${calcVar(entryData.min)}%)`;
 }
 
 function saveTrade(type) {
@@ -317,7 +322,7 @@ document.getElementById('btn-long').onclick = () => saveTrade('LONG');
 document.getElementById('btn-short').onclick = () => saveTrade('SHORT');
 document.getElementById('btn-clear').onclick = () => {
     localStorage.removeItem('active_trade');
-    entryData = { price: 0, type: null, max: 0, min: 0 };
+    entryData = { price: 0, type: null, max: 0, min: 0 }; // Reseteo completo
     document.getElementById('pnl-display').style.display = 'none';
 };
 
