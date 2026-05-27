@@ -6,7 +6,7 @@ const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
 let lastDelta = null;
 let lastHistSign = null;
 let currentPrice = 0;
-let entryData = JSON.parse(localStorage.getItem('active_trade')) || { price: 0, type: null, max: 0, min: 0 };// -- VARIABLES DE MINIMOS Y ALTOS
+let entryData = JSON.parse(localStorage.getItem('active_trade')) || { price: 0, type: null, max: 0, min: 0 };
 let isTradeActive = false;
 let entryPrice = 0;
 let maxReached = 0; 
@@ -18,9 +18,8 @@ function initAlertControls() {
     const thInput = document.getElementById('alert_th');
     const muteBtn = document.getElementById('mute_btn');
 
-    if (!thInput || !muteBtn) return; // Protección si el HTML no ha cargado del todo
+    if (!thInput || !muteBtn) return; 
 
-    // Recuperar datos de localStorage (Compatibilidad Web)
     const savedTh = localStorage.getItem('h_th');
     const savedMute = localStorage.getItem('h_mute');
 
@@ -47,14 +46,13 @@ function initAlertControls() {
     };
 }
 
-// --- CODIGO PARA MINIMO Y MAXIMO----
+// --- CODIGO PARA MINIMO Y MAXIMO ----
 function startTradeTracking(type, currentPrice) {
     isTradeActive = true;
     tradeType = type;
     entryPrice = currentPrice;
     maxReached = currentPrice;
     minReached = currentPrice;
-    
     console.log(`Trade ${type} iniciado en ${entryPrice}`);
 }
 
@@ -69,7 +67,7 @@ async function updateDashboard() {
         const current = allData[0];
         const previous = allData[1];
 
-        // --- PROCESAMIENTO DEL RSI (CON VALIDACIONES SEGURAS) ---
+        // --- PROCESAMIENTO DEL RSI ---
         if (current.rsi !== undefined) {
             const rsiVal = Number(current.rsi);
             const rsiElement = document.getElementById('rsi-val');
@@ -78,7 +76,6 @@ async function updateDashboard() {
             if (rsiElement && rsiTextElement) {
                 rsiElement.textContent = rsiVal.toFixed(2);
 
-                // Evaluación de las 5 reglas de negocio de la Estrategia Hotero
                 if (rsiVal >= 70) {
                     rsiTextElement.textContent = "Sobre compra";
                     rsiTextElement.style.color = "#35948E";
@@ -103,7 +100,7 @@ async function updateDashboard() {
             }
         }    
 
-        // MODIFICACIÓN: Verificamos que sea un dato válido y no el marcador inicial "--"
+        // --- PROCESAMIENTO DEL DELTA COINGLASS CON FILTRO BOLLINGER ---
         if (current.deltaLong && current.deltaLong !== "--") {
             const deltaEl = document.getElementById('delta_val');
             const container = document.getElementById('delta-container'); 
@@ -113,7 +110,6 @@ async function updateDashboard() {
                 const sVal = parseCoinGlassValue(current.deltaShort);
                 const delta = lVal - sVal;
                     
-                // Actualizar textos
                 let dDisp = Math.abs(delta) >= 1000 ? (delta/1000).toFixed(2) + "B" : delta.toFixed(1) + "M";
                 deltaEl.textContent = (delta >= 0 ? "+" : "") + dDisp;
                 
@@ -122,15 +118,23 @@ async function updateDashboard() {
                 if (lEl) lEl.textContent = current.deltaLong;
                 if (sEl) sEl.textContent = current.deltaShort;
 
-                // --- LÓGICA DE ALERTA ---
+                // LÓGICA DE ALERTA AL DETECTAR EXPANSIÓN DE VOLUMEN
                 if (Math.abs(delta) >= alertThreshold && alertThreshold > 0) {
                     container.style.background = delta >= 0 ? "#003d21" : "#3d0000"; 
                     container.style.border = "2px solid #fff"; 
                     deltaEl.style.color = "#fff"; 
 
                     if (!isMuted && (Date.now() - lastAlertTime > 15000)) {
-                        sonarNotificacion(delta >= 0 ? 'LONG' : 'SHORT');
-                        lastAlertTime = Date.now();
+                        // FILTRO INVISIBLE DE BOLLINGER PARA DELTA
+                        if (delta >= 0 && current.bbPermiteLong) {
+                            sonarNotificacion('LONG');
+                            lastAlertTime = Date.now();
+                        } else if (delta < 0 && current.bbPermiteShort) {
+                            sonarNotificacion('SHORT');
+                            lastAlertTime = Date.now();
+                        } else {
+                            console.log("Alerta Delta silenciada por filtro de Bandas de Bollinger.");
+                        }
                     }
                 } else {
                     container.style.background = "#1e222d"; 
@@ -141,7 +145,7 @@ async function updateDashboard() {
             }
         }
 
-        // Resto de indicadores
+        // Ejecución de alertas de indicadores principales
         checkMACDAlerts(current, previous);
         updateStrategyUI(current);
 
@@ -168,7 +172,7 @@ async function updateDashboard() {
     }
 }
 
-// NUEVA FUNCIÓN: Alerta de Cruce de MACD
+// --- ALERTA DE CRUCE DE MACD FILTRADO POR BOLLINGER ---
 function checkMACDAlerts(curr, prev) {
     const signalEl = document.getElementById('main-signal');
     if (!signalEl) return;
@@ -178,12 +182,23 @@ function checkMACDAlerts(curr, prev) {
 
     if (lastHistSign !== null && currentSign !== prevSign) {
         const esLong = currentSign > 0;
+        
+        // El flash visual en la interfaz siempre se ejecuta para que veas el cruce técnico
         triggerFlash('main-signal', esLong ? "#00ff88" : "#ff4d4d");
         
         const deltaEl = document.getElementById('delta_val');
         const deltaVal = deltaEl ? parseFloat(deltaEl.textContent) || 0 : 0;
+        
+        // Condición base de fuerza (ADX o volumen Delta alto)
         if (curr.adx > 18 || Math.abs(deltaVal) > alertThreshold) {
-            sonarNotificacion(esLong ? 'LONG' : 'SHORT');
+            // APLICACIÓN DEL FILTRO DE BOLLINGER PARA SONIDO
+            if (esLong && curr.bbPermiteLong) {
+                sonarNotificacion('LONG');
+            } else if (!esLong && curr.bbPermiteShort) {
+                sonarNotificacion('SHORT');
+            } else {
+                console.log(`Cruce MACD ${esLong ? 'LONG' : 'SHORT'} bloqueado por Filtro de Bollinger (Riesgo Alto).`);
+            }
         }
     }
     lastHistSign = currentSign;
@@ -233,7 +248,7 @@ function updateStrategyUI(latest) {
     }
 }
 
-// --- GRÁFICOS (CHART.JS) OPTIMIZADO CON 4 COLORES DE HISTOGRAMA ---
+// --- GRÁFICOS (CHART.JS) ---
 function renderCharts(data, labels) {
     const opt = { 
         responsive: true, maintainAspectRatio: false, animation: false,
@@ -246,19 +261,18 @@ function renderCharts(data, labels) {
 
     const macdCanvas = document.getElementById('macdChart');
     const adxCanvas = document.getElementById('adxChart');
-    if (!macdCanvas || !adxCanvas) return; // Salir si los canvas no existen en el DOM aún
+    if (!macdCanvas || !adxCanvas) return; 
 
     const ctxM = macdCanvas.getContext('2d');
     const hD = data.map(d => Number(d.histogram));
     
-    // --- LÓGICA DE COLORES DINÁMICOS PARA EL MOMENTUM ---
     const histogramColors = hD.map((v, idx) => {
-        if (idx === 0) return v >= 0 ? '#53B5AB' : '#ff4d4d'; 
+        if (idx === 0) return v >= 0 ? '#409C97' : '#ff4d4d'; 
         const prevV = hD[idx - 1]; 
         if (v >= 0) {
-            return v >= prevV ? '#53B5AB' : '#FA6969'; 
+            return v >= prevV ? '#409C97' : '#FA6969'; 
         } else {
-            return v <= prevV ? '#ff4d4d' : '#409C97'; 
+            return v <= prevV ? '#ff4d4d' : '#53B5AB'; 
         }
     });
     
@@ -307,7 +321,7 @@ function renderCharts(data, labels) {
     }
 }
 
-// --- LOGICA PRECIO Y PNL INCLUYENDO PICOS MAXIMO Y MINIMO ---
+// --- LOGICA PRECIO Y PNL ---
 async function updateLivePrice() {
     try {
         const response = await fetch('https://api.binance.com/api/v3/ticker/price?symbol=BTCUSDT');
@@ -458,7 +472,6 @@ document.addEventListener('DOMContentLoaded', () => {
         entryData = { price: 0, type: null, max: 0, min: 0 };
     }
 
-    // Arrancamos los hilos cíclicos una vez montado el DOM
     setInterval(updateDashboard, 1500);
     setInterval(updateLivePrice, 2000);
     setInterval(updateDeltaDisplay, 5000);
