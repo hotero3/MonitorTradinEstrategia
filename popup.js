@@ -253,12 +253,12 @@ function renderCharts(data, labels) {
     
     // --- LÓGICA DE COLORES DINÁMICOS PARA EL MOMENTUM ---
     const histogramColors = hD.map((v, idx) => {
-        if (idx === 0) return v >= 0 ? '#409C97' : '#ff4d4d'; 
+        if (idx === 0) return v >= 0 ? '#53B5AB' : '#ff4d4d'; 
         const prevV = hD[idx - 1]; 
         if (v >= 0) {
-            return v >= prevV ? '#409C97' : '#FA6969'; 
+            return v >= prevV ? '#53B5AB' : '#FA6969'; 
         } else {
-            return v <= prevV ? '#ff4d4d' : '#53B5AB'; 
+            return v <= prevV ? '#ff4d4d' : '#409C97'; 
         }
     });
     
