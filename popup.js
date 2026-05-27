@@ -235,25 +235,57 @@ function renderCharts(data, labels) {
         macdChart.update('none');
     }
 
+    // --- 2. GRÁFICO ADX & DMI (MODIFICADO: Líneas Sólidas y Brillantes) ---
     const ctxA = document.getElementById('adxChart').getContext('2d');
+    
+    // Definimos los datasets con la nueva configuración
+    const adxDatasets = [
+        { 
+            // ADX Line - Mantenemos Amarillo Hotero, Sólido
+            data: data.map(d => d.adx), 
+            borderColor: '#f0b90b', 
+            borderWidth: 2, // Ligeramente más gruesa por ser la principal
+            pointRadius: 0 
+        },
+        { 
+            // DI+ Line - MODIFICADO: Color Verde Brillante exacto, Línea SÓLIDA
+            data: data.map(d => d.dmiPlus), 
+            borderColor: '#00ff88', // El verde que pediste
+            borderWidth: 1.5, // Grosor intermedio para que se vea claro
+            pointRadius: 0,
+            fill: false // Aseguramos que no se rellene
+            // SE ELIMINÓ: borderDash: [2, 2]
+        },
+        { 
+            // DI- Line - MODIFICADO: Color Rojo Brillante exacto, Línea SÓLIDA
+            data: data.map(d => d.dmiMinus), 
+            borderColor: '#ff4d4d', // El rojo que pediste
+            borderWidth: 1.5, 
+            pointRadius: 0,
+            fill: false
+            // SE ELIMINÓ: borderDash: [2, 2]
+        }
+    ];
+
     if (!adxChart) {
         adxChart = new Chart(ctxA, {
             type: 'line',
             data: {
                 labels,
-                datasets: [
-                    { data: data.map(d => d.adx), borderColor: '#f0b90b', borderWidth: 2, pointRadius: 0 },
-                    { data: data.map(d => d.dmiPlus), borderColor: '#00ff88', borderWidth: 1, pointRadius: 0, borderDash: [2, 2] },
-                    { data: data.map(d => d.dmiMinus), borderColor: '#ff4d4d', borderWidth: 1, pointRadius: 0, borderDash: [2, 2] }
-                ]
+                datasets: adxDatasets // Usamos la configuración definida arriba
             },
             options: { ...opt, scales: { y: { min: 0, max: 60 } } }
         });
     } else {
+        // Actualización eficiente del gráfico existente
         adxChart.data.labels = labels;
-        adxChart.data.datasets[0].data = data.map(d => d.adx);
-        adxChart.data.datasets[1].data = data.map(d => d.dmiPlus);
-        adxChart.data.datasets[2].data = data.map(d => d.dmiMinus);
+        // Actualizamos las propiedades de estilo por seguridad en cada refresco
+        adxChart.data.datasets[0].data = adxDatasets[0].data;
+        adxChart.data.datasets[1].data = adxDatasets[1].data;
+        adxChart.data.datasets[1].borderColor = adxDatasets[1].borderColor; // Brillo exacto
+        adxChart.data.datasets[2].data = adxDatasets[2].data;
+        adxChart.data.datasets[2].borderColor = adxDatasets[2].borderColor; // Brillo exacto
+        
         adxChart.update('none');
     }
 }
