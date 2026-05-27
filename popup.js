@@ -184,7 +184,7 @@ function updateStrategyUI(latest) {
     }
 }
 
-// --- GRÁFICOS (CHART.JS) ---
+// --- GRÁFICOS (CHART.JS) OPTIMIZADO CON 4 COLORES DE HISTOGRAMA ---
 function renderCharts(data, labels) {
     const opt = { 
         responsive: true, maintainAspectRatio: false, animation: false,
@@ -198,12 +198,28 @@ function renderCharts(data, labels) {
     const ctxM = document.getElementById('macdChart').getContext('2d');
     const hD = data.map(d => Number(d.histogram));
     
+    // --- NUEVA LÓGICA DE COLORES DINÁMICOS PARA EL MOMENTUM ---
+    const histogramColors = hD.map((v, idx) => {
+        // Para la primera barra del gráfico no hay anterior, usamos colores base
+        if (idx === 0) return v >= 0 ? '#00ff88' : '#ff4d4d'; 
+        
+        const prevV = hD[idx - 1]; // Valor de la barra anterior
+
+        if (v >= 0) {
+            // Histograma > 0: Verde si sube, Naranja si empieza a caer (pérdida de fuerza alcista)
+            return v >= prevV ? '#00ff88' : '#ff9800'; 
+        } else {
+            // Histograma < 0: Rojo si baja, Verde Menta si empieza a subir (pérdida de fuerza bajista)
+            return v <= prevV ? '#ff4d4d' : '#26a69a'; // #26a69a es el clásico Verde Menta / Teal de TradingView
+        }
+    });
+    
     if (!macdChart) {
         macdChart = new Chart(ctxM, {
             data: {
                 labels,
                 datasets: [
-                    { type: 'bar', data: hD, backgroundColor: hD.map(v => v >= 0 ? '#00ff88' : '#ff4d4d') },
+                    { type: 'bar', data: hD, backgroundColor: histogramColors }, // Aplicamos los nuevos colores
                     { type: 'line', data: data.map(d => d.macdLine), borderColor: '#2196f3', borderWidth: 1.5, pointRadius: 0 },
                     { type: 'line', data: data.map(d => d.signalLine), borderColor: '#f0b90b', borderWidth: 1.5, pointRadius: 0 }
                 ]
@@ -213,7 +229,7 @@ function renderCharts(data, labels) {
     } else {
         macdChart.data.labels = labels;
         macdChart.data.datasets[0].data = hD;
-        macdChart.data.datasets[0].backgroundColor = hD.map(v => v >= 0 ? '#00ff88' : '#ff4d4d');
+        macdChart.data.datasets[0].backgroundColor = histogramColors; // Actualizamos los colores en cada refresco
         macdChart.data.datasets[1].data = data.map(d => d.macdLine);
         macdChart.data.datasets[2].data = data.map(d => d.signalLine);
         macdChart.update('none');
@@ -241,6 +257,7 @@ function renderCharts(data, labels) {
         adxChart.update('none');
     }
 }
+
 
 // --- LOGICA PRECIO Y PNL INCLUYENDO PICOS MAXIMO Y MINIMO ---
 async function updateLivePrice() {
