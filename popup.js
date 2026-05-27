@@ -46,14 +46,12 @@ function initAlertControls() {
     };
 }
 
-// --- CODIGO PARA MINIMO Y MAXIMO ----
 function startTradeTracking(type, currentPrice) {
     isTradeActive = true;
     tradeType = type;
     entryPrice = currentPrice;
     maxReached = currentPrice;
     minReached = currentPrice;
-    console.log(`Trade ${type} iniciado en ${entryPrice}`);
 }
 
 // --- LÓGICA DE DASHBOARD ---
@@ -69,7 +67,7 @@ async function updateDashboard() {
 
         // --- PROCESAMIENTO DEL RSI ---
         if (current.rsi !== undefined) {
-            const rsiVal = Number(current.rsi);
+            const rsiVal = Number(current.rsi) || 0;
             const rsiElement = document.getElementById('rsi-val');
             const rsiTextElement = document.getElementById('rsi-text');
 
@@ -100,7 +98,7 @@ async function updateDashboard() {
             }
         }    
 
-        // --- PROCESAMIENTO DEL DELTA COINGLASS CON FILTRO BOLLINGER ---
+        // --- PROCESAMIENTO DEL DELTA COINGLASS ---
         if (current.deltaLong && current.deltaLong !== "--") {
             const deltaEl = document.getElementById('delta_val');
             const container = document.getElementById('delta-container'); 
@@ -118,22 +116,18 @@ async function updateDashboard() {
                 if (lEl) lEl.textContent = current.deltaLong;
                 if (sEl) sEl.textContent = current.deltaShort;
 
-                // LÓGICA DE ALERTA AL DETECTAR EXPANSIÓN DE VOLUMEN
                 if (Math.abs(delta) >= alertThreshold && alertThreshold > 0) {
                     container.style.background = delta >= 0 ? "#003d21" : "#3d0000"; 
                     container.style.border = "2px solid #fff"; 
                     deltaEl.style.color = "#fff"; 
 
                     if (!isMuted && (Date.now() - lastAlertTime > 15000)) {
-                        // FILTRO INVISIBLE DE BOLLINGER PARA DELTA
                         if (delta >= 0 && current.bbPermiteLong) {
                             sonarNotificacion('LONG');
                             lastAlertTime = Date.now();
                         } else if (delta < 0 && current.bbPermiteShort) {
                             sonarNotificacion('SHORT');
                             lastAlertTime = Date.now();
-                        } else {
-                            console.log("Alerta Delta silenciada por filtro de Bandas de Bollinger.");
                         }
                     }
                 } else {
@@ -145,18 +139,17 @@ async function updateDashboard() {
             }
         }
 
-        // Ejecución de alertas de indicadores principales
         checkMACDAlerts(current, previous);
         updateStrategyUI(current);
 
         const adxValsEl = document.getElementById('adx_vals');
         if (adxValsEl) {
-            adxValsEl.textContent = `${Number(current.adx).toFixed(1)} | ${Number(current.dmiPlus).toFixed(1)} | ${Number(current.dmiMinus).toFixed(1)}`;
+            adxValsEl.textContent = `${(Number(current.adx) || 0).toFixed(1)} | ${(Number(current.dmiPlus) || 0).toFixed(1)} | ${(Number(current.dmiMinus) || 0).toFixed(1)}`;
         }
         
         const macdValsEl = document.getElementById('macd_full_vals');
         if (macdValsEl) {
-            macdValsEl.textContent = `${Number(current.histogram).toFixed(2)} | ${Number(current.macdLine).toFixed(2)} | ${Number(current.signalLine).toFixed(2)}`;
+            macdValsEl.textContent = `${(Number(current.histogram) || 0).toFixed(2)} | ${(Number(current.macdLine) || 0).toFixed(2)} | ${(Number(current.signalLine) || 0).toFixed(2)}`;
         }
         
         const revData = [...allData].reverse();
@@ -172,38 +165,31 @@ async function updateDashboard() {
     }
 }
 
-// --- ALERTA DE CRUCE DE MACD FILTRADO POR BOLLINGER ---
 function checkMACDAlerts(curr, prev) {
     const signalEl = document.getElementById('main-signal');
     if (!signalEl) return;
 
-    const currentSign = Math.sign(curr.histogram);
-    const prevSign = Math.sign(prev.histogram);
+    const currentSign = Math.sign(curr.histogram) || 0;
+    const prevSign = Math.sign(prev.histogram) || 0;
 
     if (lastHistSign !== null && currentSign !== prevSign) {
         const esLong = currentSign > 0;
-        
-        // El flash visual en la interfaz siempre se ejecuta para que veas el cruce técnico
         triggerFlash('main-signal', esLong ? "#00ff88" : "#ff4d4d");
         
         const deltaEl = document.getElementById('delta_val');
         const deltaVal = deltaEl ? parseFloat(deltaEl.textContent) || 0 : 0;
         
-        // Condición base de fuerza (ADX o volumen Delta alto)
         if (curr.adx > 18 || Math.abs(deltaVal) > alertThreshold) {
-            // APLICACIÓN DEL FILTRO DE BOLLINGER PARA SONIDO
             if (esLong && curr.bbPermiteLong) {
                 sonarNotificacion('LONG');
             } else if (!esLong && curr.bbPermiteShort) {
                 sonarNotificacion('SHORT');
-            } else {
-                console.log(`Cruce MACD ${esLong ? 'LONG' : 'SHORT'} bloqueado por Filtro de Bollinger (Riesgo Alto).`);
             }
         }
     }
     lastHistSign = currentSign;
 
-    const gap = Math.abs(curr.macdLine - curr.signalLine);
+    const gap = Math.abs(curr.macdLine - curr.signalLine) || 0;
     if (gap < 0.12) {
         signalEl.style.border = "2px solid #f0b90b";
         signalEl.classList.add('blink-border');
@@ -230,7 +216,7 @@ function updateStrategyUI(latest) {
     const histUp = latest.histogram > 0;
     const dmiBull = latest.dmiPlus > latest.dmiMinus;
 
-    adxTag.textContent = `ADX: ${Number(latest.adx).toFixed(1)}`;
+    adxTag.textContent = `ADX: ${(Number(latest.adx) || 0).toFixed(1)}`;
     adxTag.className = isStrong ? 'text-green' : '';
 
     if (isStrong && histUp && dmiBull) {
@@ -248,7 +234,6 @@ function updateStrategyUI(latest) {
     }
 }
 
-// --- GRÁFICOS (CHART.JS) ---
 function renderCharts(data, labels) {
     const opt = { 
         responsive: true, maintainAspectRatio: false, animation: false,
@@ -264,7 +249,7 @@ function renderCharts(data, labels) {
     if (!macdCanvas || !adxCanvas) return; 
 
     const ctxM = macdCanvas.getContext('2d');
-    const hD = data.map(d => Number(d.histogram));
+    const hD = data.map(d => Number(d.histogram) || 0);
     
     const histogramColors = hD.map((v, idx) => {
         if (idx === 0) return v >= 0 ? '#409C97' : '#ff4d4d'; 
@@ -282,8 +267,8 @@ function renderCharts(data, labels) {
                 labels,
                 datasets: [
                     { type: 'bar', data: hD, backgroundColor: histogramColors }, 
-                    { type: 'line', data: data.map(d => d.macdLine), borderColor: '#2196f3', borderWidth: 1.5, pointRadius: 0 },
-                    { type: 'line', data: data.map(d => d.signalLine), borderColor: '#f0b90b', borderWidth: 1.5, pointRadius: 0 }
+                    { type: 'line', data: data.map(d => Number(d.macdLine) || 0), borderColor: '#2196f3', borderWidth: 1.5, pointRadius: 0 },
+                    { type: 'line', data: data.map(d => Number(d.signalLine) || 0), borderColor: '#f0b90b', borderWidth: 1.5, pointRadius: 0 }
                 ]
             },
             options: opt
@@ -292,16 +277,16 @@ function renderCharts(data, labels) {
         macdChart.data.labels = labels;
         macdChart.data.datasets[0].data = hD;
         macdChart.data.datasets[0].backgroundColor = histogramColors; 
-        macdChart.data.datasets[1].data = data.map(d => d.macdLine);
-        macdChart.data.datasets[2].data = data.map(d => d.signalLine);
+        macdChart.data.datasets[1].data = data.map(d => Number(d.macdLine) || 0);
+        macdChart.data.datasets[2].data = data.map(d => Number(d.signalLine) || 0);
         macdChart.update('none');
     }
 
     const ctxA = adxCanvas.getContext('2d');
     const adxDatasets = [
-        { data: data.map(d => d.adx), borderColor: '#f0b90b', borderWidth: 2, pointRadius: 0 },
-        { data: data.map(d => d.dmiPlus), borderColor: '#00ff88', borderWidth: 1.5, pointRadius: 0, fill: false },
-        { data: data.map(d => d.dmiMinus), borderColor: '#FF584D', borderWidth: 1.5, pointRadius: 0, fill: false }
+        { data: data.map(d => Number(d.adx) || 0), borderColor: '#f0b90b', borderWidth: 2, pointRadius: 0 },
+        { data: data.map(d => Number(d.dmiPlus) || 0), borderColor: '#00ff88', borderWidth: 1.5, pointRadius: 0, fill: false },
+        { data: data.map(d => Number(d.dmiMinus) || 0), borderColor: '#FF584D', borderWidth: 1.5, pointRadius: 0, fill: false }
     ];
 
     if (!adxChart) {
@@ -314,19 +299,16 @@ function renderCharts(data, labels) {
         adxChart.data.labels = labels;
         adxChart.data.datasets[0].data = adxDatasets[0].data;
         adxChart.data.datasets[1].data = adxDatasets[1].data;
-        adxChart.data.datasets[1].borderColor = adxDatasets[1].borderColor; 
         adxChart.data.datasets[2].data = adxDatasets[2].data;
-        adxChart.data.datasets[2].borderColor = adxDatasets[2].borderColor; 
         adxChart.update('none');
     }
 }
 
-// --- LOGICA PRECIO Y PNL ---
 async function updateLivePrice() {
     try {
         const response = await fetch('https://api.binance.com/api/v3/ticker/price?symbol=BTCUSDT');
         const data = await response.json();
-        currentPrice = parseFloat(data.price);
+        currentPrice = parseFloat(data.price) || 0;
         
         const livePriceEl = document.getElementById('live-price');
         if (livePriceEl) {
@@ -398,7 +380,6 @@ function showTradeUI() {
     renderPicosUI();
 }
 
-// --- AUDIO ---
 function sonarNotificacion(tipo) {
     if (isMuted) return;
     try {
