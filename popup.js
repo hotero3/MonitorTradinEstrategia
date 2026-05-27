@@ -241,16 +241,16 @@ function renderCharts(data, labels) {
     // --- NUEVA LÓGICA DE COLORES DINÁMICOS PARA EL MOMENTUM ---
     const histogramColors = hD.map((v, idx) => {
         // Para la primera barra del gráfico no hay anterior, usamos colores base
-        if (idx === 0) return v >= 0 ? '#35948E' : '#ff4d4d'; 
+        if (idx === 0) return v >= 0 ? '#409C97' : '#ff4d4d'; 
         
         const prevV = hD[idx - 1]; // Valor de la barra anterior
 
         if (v >= 0) {
             // Histograma > 0: Verde si sube, Naranja si empieza a caer (pérdida de fuerza alcista)
-            return v >= prevV ? '#35948E' : '#FA6969'; 
+            return v >= prevV ? '#409C97' : '#FA6969'; 
         } else {
             // Histograma < 0: Rojo si baja, Verde Menta si empieza a subir (pérdida de fuerza bajista)
-            return v <= prevV ? '#ff4d4d' : '#26a69a'; // #26a69a es el clásico Verde Menta / Teal de TradingView
+            return v <= prevV ? '#ff4d4d' : '#53B5AB'; // #26a69a es el clásico Verde Menta / Teal de TradingView
         }
     });
     
@@ -299,7 +299,7 @@ function renderCharts(data, labels) {
         { 
             // DI- Line - MODIFICADO: Color Rojo Brillante exacto, Línea SÓLIDA
             data: data.map(d => d.dmiMinus), 
-            borderColor: '#ff4d4d', // El rojo que pediste
+            borderColor: '#FF584D', // El rojo que pediste
             borderWidth: 1.5, 
             pointRadius: 0,
             fill: false
