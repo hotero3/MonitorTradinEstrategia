@@ -207,7 +207,7 @@ function renderCharts(data, labels) {
 
         if (v >= 0) {
             // Histograma > 0: Verde si sube, Naranja si empieza a caer (pérdida de fuerza alcista)
-            return v >= prevV ? '#00ff88' : '#ff9800'; 
+            return v >= prevV ? '#35948E' : '#FA6969'; 
         } else {
             // Histograma < 0: Rojo si baja, Verde Menta si empieza a subir (pérdida de fuerza bajista)
             return v <= prevV ? '#ff4d4d' : '#26a69a'; // #26a69a es el clásico Verde Menta / Teal de TradingView
