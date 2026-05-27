@@ -229,9 +229,12 @@ function updateStrategyUI(latest) {
 }
 
 // --- GRÁFICOS (CHART.JS) OPTIMIZADO ---
+// --- GRÁFICOS (CHART.JS) TOTALMENTE BLINDADOS CONTRA BLOQUEOS ---
 function renderCharts(data, labels) {
     const opt = { 
-        responsive: true, maintainAspectRatio: false, animation: false,
+        responsive: true, 
+        maintainAspectRatio: false, 
+        animation: false,
         plugins: { legend: { display: false } },
         scales: { 
             x: { display: false }, 
@@ -239,20 +242,29 @@ function renderCharts(data, labels) {
         }
     };
 
-    const ctxM = document.getElementById('macdChart').getContext('2d');
-    const hD = data.map(d => Number(d.histogram));
+    // --- 1. GRÁFICO MACD ---
+    const canvasM = document.getElementById('macdChart');
+    if (canvasM) {
+        const ctxM = canvasM.getContext('2d');
+        const hD = data.map(d => Number(d.histogram));
 
-    const histogramColors = hD.map((v, idx) => {
-        if (idx === 0) return v >= 0 ? '#35948E' : '#ff4d4d'; 
-        const prevV = hD[idx - 1]; 
-        if (v >= 0) {
-            return v >= prevV ? '#35948E' : '#FA6969'; 
-        } else {
-            return v <= prevV ? '#ff4d4d' : '#26a69a'; 
+        // Mapeo dinámico de colores del histograma
+        const histogramColors = hD.map((v, idx) => {
+            if (idx === 0) return v >= 0 ? '#35948E' : '#ff4d4d'; 
+            const prevV = hD[idx - 1]; 
+            if (v >= 0) {
+                return v >= prevV ? '#35948E' : '#FA6969'; 
+            } else {
+                return v <= prevV ? '#ff4d4d' : '#26a69a'; 
+            }
+        });
+
+        // SOLUCIÓN RADICAL: Si Chart.js ya tiene un gráfico registrado en este canvas, lo destruimos
+        if (window.Chart && Chart.getChart(canvasM)) {
+            Chart.getChart(canvasM).destroy();
         }
-    });
 
-    if (!macdChart) {
+        // Creamos la instancia desde cero de manera limpia
         macdChart = new Chart(ctxM, {
             data: {
                 labels,
@@ -264,40 +276,30 @@ function renderCharts(data, labels) {
             },
             options: opt
         });
-    } else {
-        macdChart.data.labels = labels;
-        macdChart.data.datasets[0].data = hD;
-        macdChart.data.datasets[0].backgroundColor = histogramColors; 
-        macdChart.data.datasets[1].data = data.map(d => d.macdLine);
-        macdChart.data.datasets[2].data = data.map(d => d.signalLine);
-        macdChart.update('none');
     }
 
-    // --- GRÁFICO ADX & DMI ---
-    const ctxA = document.getElementById('adxChart').getContext('2d');
-    const adxDatasets = [
-        { data: data.map(d => d.adx), borderColor: '#f0b90b', borderWidth: 2, pointRadius: 0 },
-        { data: data.map(d => d.dmiPlus), borderColor: '#00ff88', borderWidth: 1.5, pointRadius: 0, fill: false },
-        { data: data.map(d => d.dmiMinus), borderColor: '#ff4d4d', borderWidth: 1.5, pointRadius: 0, fill: false }
-    ];
+    // --- 2. GRÁFICO ADX & DMI ---
+    const canvasA = document.getElementById('adxChart');
+    if (canvasA) {
+        const ctxA = canvasA.getContext('2d');
+        const adxDatasets = [
+            { data: data.map(d => d.adx), borderColor: '#f0b90b', borderWidth: 2, pointRadius: 0 },
+            { data: data.map(d => d.dmiPlus), borderColor: '#00ff88', borderWidth: 1.5, pointRadius: 0, fill: false },
+            { data: data.map(d => d.dmiMinus), borderColor: '#ff4d4d', borderWidth: 1.5, pointRadius: 0, fill: false }
+        ];
 
-    if (!adxChart) {
+        // SOLUCIÓN RADICAL: Destruir gráfico previo en el canvas de ADX para evitar colisiones
+        if (window.Chart && Chart.getChart(canvasA)) {
+            Chart.getChart(canvasA).destroy();
+        }
+
         adxChart = new Chart(ctxA, {
             type: 'line',
             data: { labels, datasets: adxDatasets },
             options: { ...opt, scales: { y: { min: 0, max: 60 } } }
         });
-    } else {
-        adxChart.data.labels = labels;
-        adxChart.data.datasets[0].data = adxDatasets[0].data;
-        adxChart.data.datasets[1].data = adxDatasets[1].data;
-        adxChart.data.datasets[1].borderColor = adxDatasets[1].borderColor; 
-        adxChart.data.datasets[2].data = adxDatasets[2].data;
-        adxChart.data.datasets[2].borderColor = adxDatasets[2].borderColor; 
-        adxChart.update('none');
     }
 }
-
 // --- LOGICA PRECIO Y PNL ---
 async function updateLivePrice() {
     try {
