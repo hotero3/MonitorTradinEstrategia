@@ -69,6 +69,46 @@ async function updateDashboard() {
     const current = allData[0];
     const previous = allData[1];
 
+    // --- DENTRO DE LA FUNCIÓN QUE PROCESA LA RESPUESTA DEL SERVIDOR ---
+// (Donde tomas el dato más reciente: const actual = data[0];)
+
+if (current.rsi !== undefined) {
+    const rsiVal = Number(actual.rsi);
+    const rsiElement = document.getElementById('rsi-val');
+    const rsiTextElement = document.getElementById('rsi-text');
+
+    // Imprimir el valor numérico
+    rsiElement.textContent = rsiVal.toFixed(2);
+
+    // Evaluación de las 5 reglas de negocio de la Estrategia Hotero
+    if (rsiVal >= 70) {
+        // Regla 5: Sobre compra (Color #35948E)
+        rsiTextElement.textContent = "Sobre compra";
+        rsiTextElement.style.color = "#35948E";
+        rsiElement.style.color = "#35948E";
+    } else if (rsiVal >= 55) {
+        // Regla 4: Compra fuerte (Color #26a69a)
+        rsiTextElement.textContent = "Compra fuerte";
+        rsiTextElement.style.color = "#26a69a";
+        rsiElement.style.color = "#26a69a";
+    } else if (rsiVal > 45 && rsiVal < 55) {
+        // Regla 3: Neutral (Color Amarillo #f0b90b o yellow)
+        rsiTextElement.textContent = "Neutral";
+        rsiTextElement.style.color = "#f0b90b";
+        rsiElement.style.color = "#f0b90b";
+    } else if (rsiVal <= 30) {
+        // Regla 1: Sobre venta (Color Rojo #ff4d4d)
+        rsiTextElement.textContent = "Sobre venta";
+        rsiTextElement.style.color = "#ff4d4d";
+        rsiElement.style.color = "#ff4d4d";
+    } else if (rsiVal <= 45) {
+        // Regla 2: Venta fuerte (Color Naranja #ff9800)
+        rsiTextElement.textContent = "Venta fuerte";
+        rsiTextElement.style.color = "#ff9800";
+        rsiElement.style.color = "#ff9800";
+    }
+}    
+
     // MODIFICACIÓN AQUÍ: Verificamos que sea un dato válido y no el marcador inicial "--"
     if (current.deltaLong && current.deltaLong !== "--") {
         const deltaEl = document.getElementById('delta_val');
