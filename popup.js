@@ -9,14 +9,16 @@ let currentPrice = 0;
 let entryData = JSON.parse(localStorage.getItem('active_trade')) || { price: 0, type: null, max: 0, min: 0 };// -- VARIABLES DE MINIMOS Y ALTOS
 let isTradeActive = false;
 let entryPrice = 0;
-let maxReached = 0; // El pico más alto (MFE)
-let minReached = 0; // El pico más bajo (MAE)
-let tradeType = ""; // "LONG" o "SHORT"
+let maxReached = 0; 
+let minReached = 0; 
+let tradeType = ""; 
 
 // --- INICIALIZACIÓN Y ADAPTACIÓN LOCALSTORAGE ---
 function initAlertControls() {
     const thInput = document.getElementById('alert_th');
     const muteBtn = document.getElementById('mute_btn');
+
+    if (!thInput || !muteBtn) return; // Protección si el HTML no ha cargado del todo
 
     // Recuperar datos de localStorage (Compatibilidad Web)
     const savedTh = localStorage.getItem('h_th');
@@ -44,7 +46,6 @@ function initAlertControls() {
         muteBtn.style.color = isMuted ? '#ff4d4d' : '#00ff88';
     };
 }
-initAlertControls();
 
 // --- CODIGO PARA MINIMO Y MAXIMO----
 function startTradeTracking(type, currentPrice) {
@@ -55,92 +56,88 @@ function startTradeTracking(type, currentPrice) {
     minReached = currentPrice;
     
     console.log(`Trade ${type} iniciado en ${entryPrice}`);
-    updateTradeUI(); // Función para refrescar los numeritos en pantalla
 }
 
 // --- LÓGICA DE DASHBOARD ---
 async function updateDashboard() {
     const statusDot = document.getElementById('status');
     try {
-    const response = await fetch(WEB_APP_URL);
-    const allData = await response.json(); 
-    if (!allData || allData.length < 2) return;
+        const response = await fetch(WEB_APP_URL);
+        const allData = await response.json(); 
+        if (!allData || allData.length < 2) return;
 
-    const current = allData[0];
-    const previous = allData[1];
+        const current = allData[0];
+        const previous = allData[1];
 
-    // --- DENTRO DE LA FUNCIÓN QUE PROCESA LA RESPUESTA DEL SERVIDOR ---
-// (Donde tomas el dato más reciente: const actual = data[0];)
+        // --- PROCESAMIENTO DEL RSI (CON VALIDACIONES SEGURAS) ---
+        if (current.rsi !== undefined) {
+            const rsiVal = Number(current.rsi);
+            const rsiElement = document.getElementById('rsi-val');
+            const rsiTextElement = document.getElementById('rsi-text');
 
-if (current.rsi !== undefined) {
-    const rsiVal = Number(current.rsi);
-    const rsiElement = document.getElementById('rsi-val');
-    const rsiTextElement = document.getElementById('rsi-text');
+            if (rsiElement && rsiTextElement) {
+                rsiElement.textContent = rsiVal.toFixed(2);
 
-    // Imprimir el valor numérico
-    rsiElement.textContent = rsiVal.toFixed(2);
-
-    // Evaluación de las 5 reglas de negocio de la Estrategia Hotero
-    if (rsiVal >= 70) {
-        // Regla 5: Sobre compra (Color #35948E)
-        rsiTextElement.textContent = "Sobre compra";
-        rsiTextElement.style.color = "#35948E";
-        rsiElement.style.color = "#35948E";
-    } else if (rsiVal >= 55) {
-        // Regla 4: Compra fuerte (Color #26a69a)
-        rsiTextElement.textContent = "Compra fuerte";
-        rsiTextElement.style.color = "#26a69a";
-        rsiElement.style.color = "#26a69a";
-    } else if (rsiVal > 45 && rsiVal < 55) {
-        // Regla 3: Neutral (Color Amarillo #f0b90b o yellow)
-        rsiTextElement.textContent = "Neutral";
-        rsiTextElement.style.color = "#f0b90b";
-        rsiElement.style.color = "#f0b90b";
-    } else if (rsiVal <= 30) {
-        // Regla 1: Sobre venta (Color Rojo #ff4d4d)
-        rsiTextElement.textContent = "Sobre venta";
-        rsiTextElement.style.color = "#ff4d4d";
-        rsiElement.style.color = "#ff4d4d";
-    } else if (rsiVal <= 45) {
-        // Regla 2: Venta fuerte (Color Naranja #ff9800)
-        rsiTextElement.textContent = "Venta fuerte";
-        rsiTextElement.style.color = "#ff9800";
-        rsiElement.style.color = "#ff9800";
-    }
-}    
-
-    // MODIFICACIÓN AQUÍ: Verificamos que sea un dato válido y no el marcador inicial "--"
-    if (current.deltaLong && current.deltaLong !== "--") {
-        const deltaEl = document.getElementById('delta_val');
-        const container = document.getElementById('delta-container'); 
-        
-        const lVal = parseCoinGlassValue(current.deltaLong);
-        const sVal = parseCoinGlassValue(current.deltaShort);
-        const delta = lVal - sVal;
-            
-            // Actualizar textos
-            let dDisp = Math.abs(delta) >= 1000 ? (delta/1000).toFixed(2) + "B" : delta.toFixed(1) + "M";
-            deltaEl.textContent = (delta >= 0 ? "+" : "") + dDisp;
-            document.getElementById('long-valor').textContent = current.deltaLong;
-            document.getElementById('short-valor').textContent = current.deltaShort;
-
-            // --- LÓGICA DE ALERTA ---
-            if (Math.abs(delta) >= alertThreshold && alertThreshold > 0) {
-                // Cambiamos fondo y bordes
-                container.style.background = delta >= 0 ? "#003d21" : "#3d0000"; 
-                container.style.border = "2px solid #fff"; 
-                deltaEl.style.color = "#fff"; // Texto blanco para que resalte en la alerta
-
-                if (!isMuted && (Date.now() - lastAlertTime > 15000)) {
-                    sonarNotificacion(delta >= 0 ? 'LONG' : 'SHORT');
-                    lastAlertTime = Date.now();
+                // Evaluación de las 5 reglas de negocio de la Estrategia Hotero
+                if (rsiVal >= 70) {
+                    rsiTextElement.textContent = "Sobre compra";
+                    rsiTextElement.style.color = "#35948E";
+                    rsiElement.style.color = "#35948E";
+                } else if (rsiVal >= 55) {
+                    rsiTextElement.textContent = "Compra fuerte";
+                    rsiTextElement.style.color = "#26a69a";
+                    rsiElement.style.color = "#26a69a";
+                } else if (rsiVal > 45 && rsiVal < 55) {
+                    rsiTextElement.textContent = "Neutral";
+                    rsiTextElement.style.color = "#f0b90b";
+                    rsiElement.style.color = "#f0b90b";
+                } else if (rsiVal <= 30) {
+                    rsiTextElement.textContent = "Sobre venta";
+                    rsiTextElement.style.color = "#ff4d4d";
+                    rsiElement.style.color = "#ff4d4d";
+                } else if (rsiVal <= 45) {
+                    rsiTextElement.textContent = "Venta fuerte";
+                    rsiTextElement.style.color = "#ff9800";
+                    rsiElement.style.color = "#ff9800";
                 }
-            } else {
-                // Volvemos al estado normal
-                container.style.background = "#1e222d"; 
-                container.style.border = "none";
-                container.style.borderLeft = "4px solid #f0b90b"; // Mantenemos tu estilo original
-                deltaEl.style.color = delta >= 0 ? "#00ff88" : "#ff4d4d";
+            }
+        }    
+
+        // MODIFICACIÓN: Verificamos que sea un dato válido y no el marcador inicial "--"
+        if (current.deltaLong && current.deltaLong !== "--") {
+            const deltaEl = document.getElementById('delta_val');
+            const container = document.getElementById('delta-container'); 
+            
+            if (deltaEl && container) {
+                const lVal = parseCoinGlassValue(current.deltaLong);
+                const sVal = parseCoinGlassValue(current.deltaShort);
+                const delta = lVal - sVal;
+                    
+                // Actualizar textos
+                let dDisp = Math.abs(delta) >= 1000 ? (delta/1000).toFixed(2) + "B" : delta.toFixed(1) + "M";
+                deltaEl.textContent = (delta >= 0 ? "+" : "") + dDisp;
+                
+                const lEl = document.getElementById('long-valor');
+                const sEl = document.getElementById('short-valor');
+                if (lEl) lEl.textContent = current.deltaLong;
+                if (sEl) sEl.textContent = current.deltaShort;
+
+                // --- LÓGICA DE ALERTA ---
+                if (Math.abs(delta) >= alertThreshold && alertThreshold > 0) {
+                    container.style.background = delta >= 0 ? "#003d21" : "#3d0000"; 
+                    container.style.border = "2px solid #fff"; 
+                    deltaEl.style.color = "#fff"; 
+
+                    if (!isMuted && (Date.now() - lastAlertTime > 15000)) {
+                        sonarNotificacion(delta >= 0 ? 'LONG' : 'SHORT');
+                        lastAlertTime = Date.now();
+                    }
+                } else {
+                    container.style.background = "#1e222d"; 
+                    container.style.border = "none";
+                    container.style.borderLeft = "4px solid #f0b90b"; 
+                    deltaEl.style.color = delta >= 0 ? "#00ff88" : "#ff4d4d";
+                }
             }
         }
 
@@ -148,11 +145,15 @@ if (current.rsi !== undefined) {
         checkMACDAlerts(current, previous);
         updateStrategyUI(current);
 
-        document.getElementById('adx_vals').textContent = 
-            `${Number(current.adx).toFixed(1)} | ${Number(current.dmiPlus).toFixed(1)} | ${Number(current.dmiMinus).toFixed(1)}`;
+        const adxValsEl = document.getElementById('adx_vals');
+        if (adxValsEl) {
+            adxValsEl.textContent = `${Number(current.adx).toFixed(1)} | ${Number(current.dmiPlus).toFixed(1)} | ${Number(current.dmiMinus).toFixed(1)}`;
+        }
         
-        document.getElementById('macd_full_vals').textContent = 
-            `${Number(current.histogram).toFixed(2)} | ${Number(current.macdLine).toFixed(2)} | ${Number(current.signalLine).toFixed(2)}`;
+        const macdValsEl = document.getElementById('macd_full_vals');
+        if (macdValsEl) {
+            macdValsEl.textContent = `${Number(current.histogram).toFixed(2)} | ${Number(current.macdLine).toFixed(2)} | ${Number(current.signalLine).toFixed(2)}`;
+        }
         
         const revData = [...allData].reverse();
         renderCharts(revData, revData.map(d => {
@@ -160,15 +161,18 @@ if (current.rsi !== undefined) {
             return isNaN(date) ? "" : date.getHours() + ":" + String(date.getMinutes()).padStart(2, '0');
         }));
 
-        statusDot.style.color = '#00ff88';
+        if (statusDot) statusDot.style.color = '#00ff88';
     } catch (e) { 
         console.error("Error en Dashboard:", e);
-        statusDot.style.color = '#ff4d4d'; 
+        if (statusDot) statusDot.style.color = '#ff4d4d'; 
     }
 }
+
 // NUEVA FUNCIÓN: Alerta de Cruce de MACD
 function checkMACDAlerts(curr, prev) {
     const signalEl = document.getElementById('main-signal');
+    if (!signalEl) return;
+
     const currentSign = Math.sign(curr.histogram);
     const prevSign = Math.sign(prev.histogram);
 
@@ -176,7 +180,8 @@ function checkMACDAlerts(curr, prev) {
         const esLong = currentSign > 0;
         triggerFlash('main-signal', esLong ? "#00ff88" : "#ff4d4d");
         
-        const deltaVal = parseFloat(document.getElementById('delta_val').textContent) || 0;
+        const deltaEl = document.getElementById('delta_val');
+        const deltaVal = deltaEl ? parseFloat(deltaEl.textContent) || 0 : 0;
         if (curr.adx > 18 || Math.abs(deltaVal) > alertThreshold) {
             sonarNotificacion(esLong ? 'LONG' : 'SHORT');
         }
@@ -195,13 +200,17 @@ function checkMACDAlerts(curr, prev) {
 
 function triggerFlash(elId, color) {
     const el = document.getElementById(elId);
-    el.style.boxShadow = `0 0 20px ${color}`;
-    setTimeout(() => { el.style.boxShadow = "none"; }, 500);
+    if (el) {
+        el.style.boxShadow = `0 0 20px ${color}`;
+        setTimeout(() => { el.style.boxShadow = "none"; }, 500);
+    }
 }
 
 function updateStrategyUI(latest) {
     const signalEl = document.getElementById('main-signal');
     const adxTag = document.getElementById('strength-tag');
+    if (!signalEl || !adxTag) return;
+
     const isStrong = latest.adx > 24;
     const histUp = latest.histogram > 0;
     const dmiBull = latest.dmiPlus > latest.dmiMinus;
@@ -235,22 +244,21 @@ function renderCharts(data, labels) {
         }
     };
 
-    const ctxM = document.getElementById('macdChart').getContext('2d');
+    const macdCanvas = document.getElementById('macdChart');
+    const adxCanvas = document.getElementById('adxChart');
+    if (!macdCanvas || !adxCanvas) return; // Salir si los canvas no existen en el DOM aún
+
+    const ctxM = macdCanvas.getContext('2d');
     const hD = data.map(d => Number(d.histogram));
     
-    // --- NUEVA LÓGICA DE COLORES DINÁMICOS PARA EL MOMENTUM ---
+    // --- LÓGICA DE COLORES DINÁMICOS PARA EL MOMENTUM ---
     const histogramColors = hD.map((v, idx) => {
-        // Para la primera barra del gráfico no hay anterior, usamos colores base
         if (idx === 0) return v >= 0 ? '#409C97' : '#ff4d4d'; 
-        
-        const prevV = hD[idx - 1]; // Valor de la barra anterior
-
+        const prevV = hD[idx - 1]; 
         if (v >= 0) {
-            // Histograma > 0: Verde si sube, Naranja si empieza a caer (pérdida de fuerza alcista)
             return v >= prevV ? '#409C97' : '#FA6969'; 
         } else {
-            // Histograma < 0: Rojo si baja, Verde Menta si empieza a subir (pérdida de fuerza bajista)
-            return v <= prevV ? '#ff4d4d' : '#53B5AB'; // #26a69a es el clásico Verde Menta / Teal de TradingView
+            return v <= prevV ? '#ff4d4d' : '#53B5AB'; 
         }
     });
     
@@ -259,7 +267,7 @@ function renderCharts(data, labels) {
             data: {
                 labels,
                 datasets: [
-                    { type: 'bar', data: hD, backgroundColor: histogramColors }, // Aplicamos los nuevos colores
+                    { type: 'bar', data: hD, backgroundColor: histogramColors }, 
                     { type: 'line', data: data.map(d => d.macdLine), borderColor: '#2196f3', borderWidth: 1.5, pointRadius: 0 },
                     { type: 'line', data: data.map(d => d.signalLine), borderColor: '#f0b90b', borderWidth: 1.5, pointRadius: 0 }
                 ]
@@ -269,67 +277,35 @@ function renderCharts(data, labels) {
     } else {
         macdChart.data.labels = labels;
         macdChart.data.datasets[0].data = hD;
-        macdChart.data.datasets[0].backgroundColor = histogramColors; // Actualizamos los colores en cada refresco
+        macdChart.data.datasets[0].backgroundColor = histogramColors; 
         macdChart.data.datasets[1].data = data.map(d => d.macdLine);
         macdChart.data.datasets[2].data = data.map(d => d.signalLine);
         macdChart.update('none');
     }
 
-    // --- 2. GRÁFICO ADX & DMI (MODIFICADO: Líneas Sólidas y Brillantes) ---
-    const ctxA = document.getElementById('adxChart').getContext('2d');
-    
-    // Definimos los datasets con la nueva configuración
+    const ctxA = adxCanvas.getContext('2d');
     const adxDatasets = [
-        { 
-            // ADX Line - Mantenemos Amarillo Hotero, Sólido
-            data: data.map(d => d.adx), 
-            borderColor: '#f0b90b', 
-            borderWidth: 2, // Ligeramente más gruesa por ser la principal
-            pointRadius: 0 
-        },
-        { 
-            // DI+ Line - MODIFICADO: Color Verde Brillante exacto, Línea SÓLIDA
-            data: data.map(d => d.dmiPlus), 
-            borderColor: '#00ff88', // El verde que pediste
-            borderWidth: 1.5, // Grosor intermedio para que se vea claro
-            pointRadius: 0,
-            fill: false // Aseguramos que no se rellene
-            // SE ELIMINÓ: borderDash: [2, 2]
-        },
-        { 
-            // DI- Line - MODIFICADO: Color Rojo Brillante exacto, Línea SÓLIDA
-            data: data.map(d => d.dmiMinus), 
-            borderColor: '#FF584D', // El rojo que pediste
-            borderWidth: 1.5, 
-            pointRadius: 0,
-            fill: false
-            // SE ELIMINÓ: borderDash: [2, 2]
-        }
+        { data: data.map(d => d.adx), borderColor: '#f0b90b', borderWidth: 2, pointRadius: 0 },
+        { data: data.map(d => d.dmiPlus), borderColor: '#00ff88', borderWidth: 1.5, pointRadius: 0, fill: false },
+        { data: data.map(d => d.dmiMinus), borderColor: '#FF584D', borderWidth: 1.5, pointRadius: 0, fill: false }
     ];
 
     if (!adxChart) {
         adxChart = new Chart(ctxA, {
             type: 'line',
-            data: {
-                labels,
-                datasets: adxDatasets // Usamos la configuración definida arriba
-            },
+            data: { labels, datasets: adxDatasets },
             options: { ...opt, scales: { y: { min: 0, max: 60 } } }
         });
     } else {
-        // Actualización eficiente del gráfico existente
         adxChart.data.labels = labels;
-        // Actualizamos las propiedades de estilo por seguridad en cada refresco
         adxChart.data.datasets[0].data = adxDatasets[0].data;
         adxChart.data.datasets[1].data = adxDatasets[1].data;
-        adxChart.data.datasets[1].borderColor = adxDatasets[1].borderColor; // Brillo exacto
+        adxChart.data.datasets[1].borderColor = adxDatasets[1].borderColor; 
         adxChart.data.datasets[2].data = adxDatasets[2].data;
-        adxChart.data.datasets[2].borderColor = adxDatasets[2].borderColor; // Brillo exacto
-        
+        adxChart.data.datasets[2].borderColor = adxDatasets[2].borderColor; 
         adxChart.update('none');
     }
 }
-
 
 // --- LOGICA PRECIO Y PNL INCLUYENDO PICOS MAXIMO Y MINIMO ---
 async function updateLivePrice() {
@@ -338,10 +314,11 @@ async function updateLivePrice() {
         const data = await response.json();
         currentPrice = parseFloat(data.price);
         
-        // Actualizar precio en pantalla
-        document.getElementById('live-price').textContent = currentPrice.toLocaleString('en-US', { minimumFractionDigits: 2 });
+        const livePriceEl = document.getElementById('live-price');
+        if (livePriceEl) {
+            livePriceEl.textContent = currentPrice.toLocaleString('en-US', { minimumFractionDigits: 2 });
+        }
         
-        // Si hay un trade activo, actualizar PnL y Picos
         if (entryData.type) {
             updatePicos(currentPrice);
             calculatePnL();
@@ -351,16 +328,12 @@ async function updateLivePrice() {
 
 function updatePicos(price) {
     let updated = false;
-    
-    // Si es la primera vez que corre tras presionar el botón
     if (entryData.max === 0) { entryData.max = price; updated = true; }
     if (entryData.min === 0) { entryData.min = price; updated = true; }
 
-    // Lógica de máximos y mínimos
     if (price > entryData.max) { entryData.max = price; updated = true; }
     if (price < entryData.min) { entryData.min = price; updated = true; }
 
-    // Guardar si hubo cambios para no perder los picos al refrescar
     if (updated) {
         localStorage.setItem('active_trade', JSON.stringify(entryData));
         renderPicosUI();
@@ -369,67 +342,46 @@ function updatePicos(price) {
 
 function calculatePnL() {
     if (!entryData.price) return;
-    
-    // PnL Real (sin apalancamiento aún)
     let pnlBase = ((entryData.type === 'LONG' ? (currentPrice - entryData.price) : (entryData.price - currentPrice)) / entryData.price);
-    let pnlPercent = pnlBase * 100 * 20; // x20 aplicado
+    let pnlPercent = pnlBase * 100 * 20; 
     
     const pnlEl = document.getElementById('pnl-val');
-    pnlEl.textContent = (pnlPercent >= 0 ? "+" : "") + pnlPercent.toFixed(2) + "%";
-    pnlEl.style.color = pnlPercent >= 0 ? "#00ff88" : "#ff4d4d";
+    if (pnlEl) {
+        pnlEl.textContent = (pnlPercent >= 0 ? "+" : "") + pnlPercent.toFixed(2) + "%";
+        pnlEl.style.color = pnlPercent >= 0 ? "#00ff88" : "#ff4d4d";
+    }
 }
 
 function renderPicosUI() {
-    // Si no hay datos, no intentamos formatear
     if (!entryData.max || !entryData.min || !entryData.price) return;
 
-    // Calculamos la variación de los picos respecto al precio de entrada (x20)
     const calcVar = (pico) => {
         let v = ((entryData.type === 'LONG' ? (pico - entryData.price) : (entryData.price - pico)) / entryData.price) * 100 * 20;
         return v.toFixed(2);
     };
 
-    // Actualizamos los elementos en el HTML con seguridad
-    document.getElementById('max-val').textContent = `${entryData.max.toFixed(2)} (${calcVar(entryData.max)}%)`;
-    document.getElementById('min-val').textContent = `${entryData.min.toFixed(2)} (${calcVar(entryData.min)}%)`;
+    const maxEl = document.getElementById('max-val');
+    const minEl = document.getElementById('min-val');
+    if (maxEl) maxEl.textContent = `${entryData.max.toFixed(2)} (${calcVar(entryData.max)}%)`;
+    if (minEl) minEl.textContent = `${entryData.min.toFixed(2)} (${calcVar(entryData.min)}%)`;
 }
 
 function saveTrade(type) {
-    // Inicializamos con el precio actual y picos en el precio de entrada
-    entryData = { 
-        price: currentPrice, 
-        type: type, 
-        max: currentPrice, 
-        min: currentPrice 
-    };
+    entryData = { price: currentPrice, type: type, max: currentPrice, min: currentPrice };
     localStorage.setItem('active_trade', JSON.stringify(entryData));
     showTradeUI();
     renderPicosUI();
 }
 
-document.getElementById('btn-long').onclick = () => saveTrade('LONG');
-document.getElementById('btn-short').onclick = () => saveTrade('SHORT');
-document.getElementById('btn-clear').onclick = () => {
-    localStorage.removeItem('active_trade');
-    entryData = { price: 0, type: null, max: 0, min: 0 }; // Reseteo completo
-    document.getElementById('pnl-display').style.display = 'none';
-};
-
 function showTradeUI() {
-    document.getElementById('pnl-display').style.display = 'block';
-    const info = document.getElementById('entry-info');
-    info.textContent = `${entryData.type} @ ${entryData.price.toFixed(2)}`;
-    info.style.color = entryData.type === 'LONG' ? '#00ff88' : '#ff4d4d';
+    const pnlDispEl = document.getElementById('pnl-display');
+    const infoEl = document.getElementById('entry-info');
+    if (pnlDispEl) pnlDispEl.style.display = 'block';
+    if (infoEl) {
+        infoEl.textContent = `${entryData.type} @ ${entryData.price.toFixed(2)}`;
+        infoEl.style.color = entryData.type === 'LONG' ? '#00ff88' : '#ff4d4d';
+    }
     renderPicosUI();
-}
-
-// Al cargar la página:
-const savedTrade = localStorage.getItem('active_trade');
-if (savedTrade) {
-    entryData = JSON.parse(savedTrade);
-    showTradeUI(); 
-} else {
-    entryData = { price: 0, type: null, max: 0, min: 0 };
 }
 
 // --- AUDIO ---
@@ -455,9 +407,6 @@ function sonarNotificacion(tipo) {
     } catch(e) {}
 }
 
-// --- DELTA (Simulado en Web o vacío) ---
-// Nota: El Delta en la web no se actualizará automáticamente 
-// a menos que abras la pestaña de CoinGlass.
 function updateDeltaDisplay() {
     const savedDelta = localStorage.getItem('btcDeltaData');
     if (savedDelta) {
@@ -466,9 +415,13 @@ function updateDeltaDisplay() {
         const sVal = parseCoinGlassValue(data.sStr);
         const delta = lVal - sVal;
         
-        document.getElementById('delta_val').textContent = (delta >= 0 ? "+" : "") + (delta/1000).toFixed(2) + "B";
-        document.getElementById('long-valor').textContent = data.lStr;
-        document.getElementById('short-valor').textContent = data.sStr;
+        const dValEl = document.getElementById('delta_val');
+        const lValEl = document.getElementById('long-valor');
+        const sValEl = document.getElementById('short-valor');
+
+        if (dValEl) dValEl.textContent = (delta >= 0 ? "+" : "") + (delta/1000).toFixed(2) + "B";
+        if (lValEl) lValEl.textContent = data.lStr;
+        if (sValEl) sValEl.textContent = data.sStr;
     }
 }
 
@@ -478,9 +431,38 @@ function parseCoinGlassValue(str) {
     return str.includes('B') ? num * 1000 : num;
 }
 
-// --- INTERVALOS ---
-setInterval(updateDashboard, 1500);
-setInterval(updateLivePrice, 2000);
-setInterval(updateDeltaDisplay, 5000);
-updateLivePrice();
-updateDashboard();
+// --- CONTROLADOR DE ARRANQUE SEGURO ---
+document.addEventListener('DOMContentLoaded', () => {
+    initAlertControls();
+    
+    const btnLong = document.getElementById('btn-long');
+    const btnShort = document.getElementById('btn-short');
+    const btnClear = document.getElementById('btn-clear');
+
+    if (btnLong) btnLong.onclick = () => saveTrade('LONG');
+    if (btnShort) btnShort.onclick = () => saveTrade('SHORT');
+    if (btnClear) {
+        btnClear.onclick = () => {
+            localStorage.removeItem('active_trade');
+            entryData = { price: 0, type: null, max: 0, min: 0 }; 
+            const pnlDisp = document.getElementById('pnl-display');
+            if (pnlDisp) pnlDisp.style.display = 'none';
+        };
+    }
+
+    const savedTrade = localStorage.getItem('active_trade');
+    if (savedTrade) {
+        entryData = JSON.parse(savedTrade);
+        showTradeUI(); 
+    } else {
+        entryData = { price: 0, type: null, max: 0, min: 0 };
+    }
+
+    // Arrancamos los hilos cíclicos una vez montado el DOM
+    setInterval(updateDashboard, 1500);
+    setInterval(updateLivePrice, 2000);
+    setInterval(updateDeltaDisplay, 5000);
+    
+    updateLivePrice();
+    updateDashboard();
+});
