@@ -1,4 +1,3 @@
-@@ -1,446 +1,486 @@
 const WEB_APP_URL = "https://dashboardhtrading.onrender.com/get-indicators";
 
 let macdChart = null, adxChart = null;
