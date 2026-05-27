@@ -201,7 +201,7 @@ function renderCharts(data, labels) {
     // --- NUEVA LÓGICA DE COLORES DINÁMICOS PARA EL MOMENTUM ---
     const histogramColors = hD.map((v, idx) => {
         // Para la primera barra del gráfico no hay anterior, usamos colores base
-        if (idx === 0) return v >= 0 ? '#00ff88' : '#ff4d4d'; 
+        if (idx === 0) return v >= 0 ? '#35948E' : '#ff4d4d'; 
         
         const prevV = hD[idx - 1]; // Valor de la barra anterior
 
