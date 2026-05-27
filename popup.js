@@ -73,7 +73,7 @@ async function updateDashboard() {
 // (Donde tomas el dato más reciente: const actual = data[0];)
 
 if (current.rsi !== undefined) {
-    const rsiVal = Number(actual.rsi);
+    const rsiVal = Number(current.rsi);
     const rsiElement = document.getElementById('rsi-val');
     const rsiTextElement = document.getElementById('rsi-text');
 
