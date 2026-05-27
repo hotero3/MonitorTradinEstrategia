@@ -3,21 +3,13 @@ const WEB_APP_URL = "https://dashboardhtrading.onrender.com/get-indicators";
 let macdChart = null, adxChart = null;
 let isMuted = false, alertThreshold = 100, lastAlertTime = 0;
 const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-let lastDelta = null;
 let lastHistSign = null;
 let currentPrice = 0;
 let entryData = JSON.parse(localStorage.getItem('active_trade')) || { price: 0, type: null, max: 0, min: 0 };
-let isTradeActive = false;
-let entryPrice = 0;
-let maxReached = 0; 
-let minReached = 0; 
-let tradeType = ""; 
 
-// --- INICIALIZACIÓN Y ADAPTACIÓN LOCALSTORAGE ---
 function initAlertControls() {
     const thInput = document.getElementById('alert_th');
     const muteBtn = document.getElementById('mute_btn');
-
     if (!thInput || !muteBtn) return; 
 
     const savedTh = localStorage.getItem('h_th');
@@ -46,15 +38,6 @@ function initAlertControls() {
     };
 }
 
-function startTradeTracking(type, currentPrice) {
-    isTradeActive = true;
-    tradeType = type;
-    entryPrice = currentPrice;
-    maxReached = currentPrice;
-    minReached = currentPrice;
-}
-
-// --- LÓGICA DE DASHBOARD ---
 async function updateDashboard() {
     const statusDot = document.getElementById('status');
     try {
@@ -65,7 +48,7 @@ async function updateDashboard() {
         const current = allData[0];
         const previous = allData[1];
 
-        // --- PROCESAMIENTO DEL RSI ---
+        // --- PROCESAMIENTO RSI ---
         if (current.rsi !== undefined) {
             const rsiVal = Number(current.rsi) || 0;
             const rsiElement = document.getElementById('rsi-val');
@@ -73,7 +56,6 @@ async function updateDashboard() {
 
             if (rsiElement && rsiTextElement) {
                 rsiElement.textContent = rsiVal.toFixed(2);
-
                 if (rsiVal >= 70) {
                     rsiTextElement.textContent = "Sobre compra";
                     rsiTextElement.style.color = "#35948E";
@@ -98,7 +80,7 @@ async function updateDashboard() {
             }
         }    
 
-        // --- PROCESAMIENTO DEL DELTA COINGLASS ---
+        // --- PROCESAMIENTO DELTA ---
         if (current.deltaLong && current.deltaLong !== "--") {
             const deltaEl = document.getElementById('delta_val');
             const container = document.getElementById('delta-container'); 
@@ -153,14 +135,16 @@ async function updateDashboard() {
         }
         
         const revData = [...allData].reverse();
-        renderCharts(revData, revData.map(d => {
+        const timeLabels = revData.map(d => {
             const date = new Date(d.tiempo);
             return isNaN(date) ? "" : date.getHours() + ":" + String(date.getMinutes()).padStart(2, '0');
-        }));
+        });
+
+        renderCharts(revData, timeLabels);
 
         if (statusDot) statusDot.style.color = '#00ff88';
     } catch (e) { 
-        console.error("Error en Dashboard:", e);
+        console.error("Error Crítico UI Dashboard:", e);
         if (statusDot) statusDot.style.color = '#ff4d4d'; 
     }
 }
@@ -234,8 +218,9 @@ function updateStrategyUI(latest) {
     }
 }
 
+// --- RENDERIZADO CORREGIDO Y SEGURO DE GRÁFICOS ---
 function renderCharts(data, labels) {
-    const opt = { 
+    const chartOptions = { 
         responsive: true, maintainAspectRatio: false, animation: false,
         plugins: { legend: { display: false } },
         scales: { 
@@ -248,59 +233,55 @@ function renderCharts(data, labels) {
     const adxCanvas = document.getElementById('adxChart');
     if (!macdCanvas || !adxCanvas) return; 
 
-    const ctxM = macdCanvas.getContext('2d');
-    const hD = data.map(d => Number(d.histogram) || 0);
-    
-    const histogramColors = hD.map((v, idx) => {
+    const histData = data.map(d => Number(d.histogram) || 0);
+    const colors = histData.map((v, idx) => {
         if (idx === 0) return v >= 0 ? '#409C97' : '#ff4d4d'; 
-        const prevV = hD[idx - 1]; 
-        if (v >= 0) {
-            return v >= prevV ? '#409C97' : '#FA6969'; 
-        } else {
-            return v <= prevV ? '#ff4d4d' : '#53B5AB'; 
-        }
+        return v >= 0 ? (v >= histData[idx - 1] ? '#409C97' : '#FA6969') : (v <= histData[idx - 1] ? '#ff4d4d' : '#53B5AB');
     });
-    
+
+    // Gráfico 1: MACD
     if (!macdChart) {
-        macdChart = new Chart(ctxM, {
+        macdChart = new Chart(macdCanvas.getContext('2d'), {
+            type: 'bar',
             data: {
-                labels,
+                labels: labels,
                 datasets: [
-                    { type: 'bar', data: hD, backgroundColor: histogramColors }, 
+                    { type: 'bar', data: histData, backgroundColor: colors }, 
                     { type: 'line', data: data.map(d => Number(d.macdLine) || 0), borderColor: '#2196f3', borderWidth: 1.5, pointRadius: 0 },
                     { type: 'line', data: data.map(d => Number(d.signalLine) || 0), borderColor: '#f0b90b', borderWidth: 1.5, pointRadius: 0 }
                 ]
             },
-            options: opt
+            options: chartOptions
         });
     } else {
         macdChart.data.labels = labels;
-        macdChart.data.datasets[0].data = hD;
-        macdChart.data.datasets[0].backgroundColor = histogramColors; 
+        macdChart.data.datasets[0].data = histData;
+        macdChart.data.datasets[0].backgroundColor = colors;
         macdChart.data.datasets[1].data = data.map(d => Number(d.macdLine) || 0);
         macdChart.data.datasets[2].data = data.map(d => Number(d.signalLine) || 0);
-        macdChart.update('none');
+        macdChart.update();
     }
 
-    const ctxA = adxCanvas.getContext('2d');
-    const adxDatasets = [
-        { data: data.map(d => Number(d.adx) || 0), borderColor: '#f0b90b', borderWidth: 2, pointRadius: 0 },
-        { data: data.map(d => Number(d.dmiPlus) || 0), borderColor: '#00ff88', borderWidth: 1.5, pointRadius: 0, fill: false },
-        { data: data.map(d => Number(d.dmiMinus) || 0), borderColor: '#FF584D', borderWidth: 1.5, pointRadius: 0, fill: false }
-    ];
-
+    // Gráfico 2: ADX / DMI
     if (!adxChart) {
-        adxChart = new Chart(ctxA, {
+        adxChart = new Chart(adxCanvas.getContext('2d'), {
             type: 'line',
-            data: { labels, datasets: adxDatasets },
-            options: { ...opt, scales: { y: { min: 0, max: 60 } } }
+            data: {
+                labels: labels,
+                datasets: [
+                    { data: data.map(d => Number(d.adx) || 0), borderColor: '#f0b90b', borderWidth: 2, pointRadius: 0 },
+                    { data: data.map(d => Number(d.dmiPlus) || 0), borderColor: '#00ff88', borderWidth: 1.5, pointRadius: 0 },
+                    { data: data.map(d => Number(d.dmiMinus) || 0), borderColor: '#FF584D', borderWidth: 1.5, pointRadius: 0 }
+                ]
+            },
+            options: { ...chartOptions, scales: { y: { min: 0, max: 60 } } }
         });
     } else {
         adxChart.data.labels = labels;
-        adxChart.data.datasets[0].data = adxDatasets[0].data;
-        adxChart.data.datasets[1].data = adxDatasets[1].data;
-        adxChart.data.datasets[2].data = adxDatasets[2].data;
-        adxChart.update('none');
+        adxChart.data.datasets[0].data = data.map(d => Number(d.adx) || 0);
+        adxChart.data.datasets[1].data = data.map(d => Number(d.dmiPlus) || 0);
+        adxChart.data.datasets[2].data = data.map(d => Number(d.dmiMinus) || 0);
+        adxChart.update();
     }
 }
 
@@ -326,7 +307,6 @@ function updatePicos(price) {
     let updated = false;
     if (entryData.max === 0) { entryData.max = price; updated = true; }
     if (entryData.min === 0) { entryData.min = price; updated = true; }
-
     if (price > entryData.max) { entryData.max = price; updated = true; }
     if (price < entryData.min) { entryData.min = price; updated = true; }
 
@@ -350,11 +330,7 @@ function calculatePnL() {
 
 function renderPicosUI() {
     if (!entryData.max || !entryData.min || !entryData.price) return;
-
-    const calcVar = (pico) => {
-        let v = ((entryData.type === 'LONG' ? (pico - entryData.price) : (entryData.price - pico)) / entryData.price) * 100 * 20;
-        return v.toFixed(2);
-    };
+    const calcVar = (pico) => (((entryData.type === 'LONG' ? (pico - entryData.price) : (entryData.price - pico)) / entryData.price) * 100 * 20).toFixed(2);
 
     const maxEl = document.getElementById('max-val');
     const minEl = document.getElementById('min-val');
@@ -369,6 +345,7 @@ function saveTrade(type) {
     renderPicosUI();
 }
 
+// Muestra la interfaz de PnL activo
 function showTradeUI() {
     const pnlDispEl = document.getElementById('pnl-display');
     const infoEl = document.getElementById('entry-info');
@@ -426,7 +403,6 @@ function parseCoinGlassValue(str) {
     return str.includes('B') ? num * 1000 : num;
 }
 
-// --- CONTROLADOR DE ARRANQUE SEGURO ---
 document.addEventListener('DOMContentLoaded', () => {
     initAlertControls();
     
@@ -449,8 +425,6 @@ document.addEventListener('DOMContentLoaded', () => {
     if (savedTrade) {
         entryData = JSON.parse(savedTrade);
         showTradeUI(); 
-    } else {
-        entryData = { price: 0, type: null, max: 0, min: 0 };
     }
 
     setInterval(updateDashboard, 1500);
