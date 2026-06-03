@@ -13,6 +13,52 @@ let maxReached = 0; // El pico más alto (MFE)
 let minReached = 0; // El pico más bajo (MAE)
 let tradeType = ""; // "LONG" o "SHORT"
 
+// --- LÓGICA PRECIO, PNL Y BOLLINGER EN FRONTEND (INMUNE A CAÍDAS) ---
+let priceHistory = []; // Almacena los últimos 20 precios en tiempo real para el Bollinger local
+
+async function updateLivePrice() {
+    try {
+        const response = await fetch('https://api.binance.com/api/v3/ticker/price?symbol=BTCUSDT');
+        const data = await response.json();
+        currentPrice = parseFloat(data.price);
+
+        // 1. Actualizar precio en pantalla
+        const livePriceEl = document.getElementById('live-price');
+        if (livePriceEl) {
+            livePriceEl.textContent = currentPrice.toLocaleString('en-US', { minimumFractionDigits: 2 });
+        }
+
+        // 2. ALTERNATIVA BOLLINGER LOCAL: Añadir precio al historial para cálculo matemático
+        priceHistory.push(currentPrice);
+        if (priceHistory.length > 20) {
+            priceHistory.shift(); // Mantenemos solo los últimos 20 registros (Periodo 20)
+        }
+
+        // Si ya tenemos suficientes datos locales, calculamos las bandas sin molestar a Render
+        if (priceHistory.length === 20) {
+            // Calcular Media Móvil Simple (SMA)
+            const sum = priceHistory.reduce((a, b) => a + b, 0);
+            const sma = sum / 20;
+
+            // Calcular Desviación Estándar
+            const variance = priceHistory.reduce((a, b) => a + Math.pow(b - sma, 2), 0) / 20;
+            const stdDev = Math.sqrt(variance);
+
+            // Guardamos las bandas globalmente para que updateStrategyUI() las pueda leer
+            window.localBbUpper = sma + (2 * stdDev);
+            window.localBbLower = sma - (2 * stdDev);
+        }
+
+        // 3. Si hay un trade activo, actualizar PnL y Picos
+        if (entryData.type) {
+            updatePicos(currentPrice);
+            calculatePnL();
+        }
+    } catch (e) { 
+        console.error("Error Binance:", e); 
+    }
+}
+
 // --- INICIALIZACIÓN Y ADAPTACIÓN LOCALSTORAGE ---
 function initAlertControls() {
     const thInput = document.getElementById('alert_th');
@@ -199,21 +245,34 @@ function triggerFlash(elId, color) {
     setTimeout(() => { el.style.boxShadow = "none"; }, 500);
 }
 
-function updateStrategyUI(latest) {
+function updateStrategyUI(latest, allData) {
     const signalEl = document.getElementById('main-signal');
     const adxTag = document.getElementById('strength-tag');
-    const isStrong = latest.adx > 24;
+    if (!signalEl || !adxTag) return;
+    
+    const isStrong = latest.adx > 22;
     const histUp = latest.histogram > 0;
     const dmiBull = latest.dmiPlus > latest.dmiMinus;
+    
+    // Filtros de Bandas de Bollinger calculadas nativamente en el navegador
+    let precioEnBandaInferior = false;
+    let precioEnBandaSuperior = false;
+
+    if (window.localBbUpper && window.localBbLower) {
+        // Filtro con margen de aproximación del 0.05% adaptado al scalping en vivo
+        precioEnBandaInferior = currentPrice <= (window.localBbLower * 1.0005);
+        precioEnBandaSuperior = currentPrice >= (window.localBbUpper * 0.9995);
+    }
 
     adxTag.textContent = `ADX: ${Number(latest.adx).toFixed(1)}`;
     adxTag.className = isStrong ? 'text-green' : '';
 
-    if (isStrong && histUp && dmiBull) {
+    // Combinación letal: Indicadores de tendencia (Render) + Confirmación de agotamiento por Bollinger (Local)
+    if (isStrong && histUp && dmiBull && precioEnBandaInferior) {
         signalEl.textContent = "POSIBLE LONG";
         signalEl.style.background = "rgba(0, 255, 136, 0.2)";
         signalEl.style.color = "#00ff88";
-    } else if (isStrong && !histUp && !dmiBull) {
+    } else if (isStrong && !histUp && !dmiBull && precioEnBandaSuperior) {
         signalEl.textContent = "POSIBLE SHORT";
         signalEl.style.background = "rgba(255, 77, 77, 0.2)";
         signalEl.style.color = "#ff4d4d";
