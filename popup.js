@@ -156,9 +156,14 @@ function triggerFlash(elId, color) {
     if (el) { el.style.boxShadow = `0 0 20px ${color}`; setTimeout(() => { el.style.boxShadow = "none"; }, 500); }
 }
 
+// --- ESTRATEGIA CON ALERTAS VISUALES DE CONFLUENCIA Y REVERSIÓN ---
 function updateStrategyUI(latest, allData) {
     const signalEl = document.getElementById('main-signal');
     const adxTag = document.getElementById('strength-tag');
+    
+    // Asegúrate de tener un contenedor en tu HTML con id="alert-reversion" para mostrar estas advertencias
+    const alertRevEl = document.getElementById('alert-reversion'); 
+    
     if (!signalEl || !adxTag || !allData || allData.length < 2) return;
     
     const previous = allData[1];
@@ -168,25 +173,72 @@ function updateStrategyUI(latest, allData) {
     const histUp = latest.histogram > 0;
     const dmiBull = latest.dmiPlus > latest.dmiMinus;
     
-    let precioEnBandaInferior = false;
-    let precioEnBandaSuperior = false;
+    // Determinación de posición exacta respecto a las Bandas de Bollinger Locales
+    let precioPorDebajoBandaLower = false;
+    let precioPorEncimaBandaUpper = false;
+    let advertenciaReversion = "";
+    let colorAdvertencia = "";
 
     if (window.localBbUpper && window.localBbLower) {
-        precioEnBandaInferior = currentPrice <= (window.localBbLower * 1.0005);
-        precioEnBandaSuperior = currentPrice >= (window.localBbUpper * 0.9995);
+        precioPorDebajoBandaLower = currentPrice <= window.localBbLower;
+        precioPorEncimaBandaUpper = currentPrice >= window.localBbUpper;
+
+        // --- LÓGICA DE DETECCIÓN DE REVERSIÓN / SOBREEXTENSIÓN ---
+        if (precioPorDebajoBandaLower && !histUp) {
+            advertenciaReversion = "⚠️ ALERTA: Precio bajo la Banda Inferior. Posible REVERSIÓN AL ALZA (Agotamiento Short).";
+            colorAdvertencia = "#f0b90b"; // Amarillo preventivo
+        } else if (precioPorEncimaBandaUpper && histUp) {
+            advertenciaReversion = "⚠️ ALERTA: Precio sobre la Banda Superior. Posible REVERSIÓN A LA BAJA (Agotamiento Long).";
+            colorAdvertencia = "#f0b90b";
+        } else if (precioPorDebajoBandaLower && histUp && dmiBull && isStrong) {
+            advertenciaReversion = "🔥 CONFLUENCIA PERFECTA: Ruptura alcista desde soporte extremo de Bollinger.";
+            colorAdvertencia = "#00ff88"; // Verde confirmación rápida
+        } else if (precioPorEncimaBandaUpper && !histUp && !dmiBull && isStrong) {
+            advertenciaReversion = "💥 CONFLUENCIA PERFECTA: Ruptura bajista desde resistencia extrema de Bollinger.";
+            colorAdvertencia = "#ff4d4d"; // Rojo confirmación rápida
+        }
     }
 
+    // Actualizar el contenedor de alertas visuales de reversión
+    if (alertRevEl) {
+        if (advertenciaReversion !== "") {
+            alertRevEl.textContent = advertenciaReversion;
+            alertRevEl.style.border = `1px solid ${colorAdvertencia}`;
+            alertRevEl.style.color = colorAdvertencia;
+            alertRevEl.style.display = "block";
+        } else {
+            alertRevEl.style.display = "none"; // Ocultar si el precio está en zona segura central
+        }
+    }
+
+    // Mapeo en el tag del ADX
     adxTag.textContent = `ADX: ${Number(latest.adx).toFixed(1)} (${adxAcelerando ? '▲' : '▼'})`;
     adxTag.className = isStrong ? 'text-green' : '';
 
-    if (isStrong && adxAcelerando && histUp && dmiBull && precioEnBandaInferior) {
-        signalEl.textContent = "POSIBLE LONG";
-        signalEl.style.background = "rgba(0, 255, 136, 0.2)";
-        signalEl.style.color = "#00ff88";
-    } else if (isStrong && adxAcelerando && !histUp && !dmiBull && precioEnBandaSuperior) {
-        signalEl.textContent = "POSIBLE SHORT";
-        signalEl.style.background = "rgba(255, 77, 77, 0.2)";
-        signalEl.style.color = "#ff4d4d";
+    // --- SEÑAL MAESTRA DE ENTRADA CON FILTRO ANTITRAMPAS ---
+    // Si hay fuerza, histograma positivo, DMI comprador, pero el precio ya está extremadamente ARRIBA de las bandas, congelamos el LONG.
+    if (isStrong && adxAcelerando && histUp && dmiBull) {
+        if (precioPorEncimaBandaUpper) {
+            signalEl.textContent = "ESPERAR RECORTE (Riesgo de Rechazo)";
+            signalEl.style.background = "rgba(240, 185, 11, 0.1)";
+            signalEl.style.color = "#f0b90b";
+        } else {
+            signalEl.textContent = "POSIBLE LONG";
+            signalEl.style.background = "rgba(0, 255, 136, 0.2)";
+            signalEl.style.color = "#00ff88";
+        }
+    } 
+    // Si hay fuerza, histograma negativo, DMI vendedor, pero el precio ya está extremadamente ABAJO de las bandas, congelamos el SHORT.
+    else if (isStrong && adxAcelerando && !histUp && !dmiBull) {
+        if (precioPorDebajoBandaLower) {
+            signalEl.textContent = "ESPERAR REBOTE (Soporte Mayor)";
+            signalEl.style.background = "rgba(240, 185, 11, 0.1)";
+            signalEl.style.color = "#f0b90b";
+        } else {
+            signalEl.textContent = "POSIBLE SHORT";
+            signalEl.style.background = "rgba(255, 77, 77, 0.2)";
+            signalEl.style.color = "#ff4d4d";
+        }
     } else {
         signalEl.textContent = "ESPERANDO...";
         signalEl.style.background = "#333";
