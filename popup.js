@@ -67,7 +67,7 @@ async function updateDashboard() {
         updateStrategyUI(latest, data);
         
         // Renderizar Gráficos (invirtiendo el array para orden cronológico de izquierda a derecha)
-        renderCharts(data);
+        renderCharts([...data].reverse());
         
         // Seguimiento de Trade Activo si existe
         updateActiveTradeLogic();
@@ -201,77 +201,51 @@ function updateActiveTradeLogic() {
 }
 
 function renderCharts(histData) {
-    if (!histData || histData.length === 0) return;
-
-    // Crear las etiquetas de tiempo (Pasado -> Presente)
     const labels = histData.map(d => {
         const date = new Date(d.tiempo);
         return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     });
 
+    // 1. Renderizar Gráfico MACD
+    const ctxMacd = document.getElementById('macdChart').getContext('2d');
     const histValues = histData.map(d => d.histogram);
     const bgColors = histValues.map(v => v >= 0 ? 'rgba(0, 255, 136, 0.6)' : 'rgba(255, 77, 77, 0.6)');
 
-    // 1. GESTIÓN DEL GRÁFICO MACD
-    const ctxMacd = document.getElementById('macdChart').getContext('2d');
-    if (macdChart) {
-        // SI EL GRÁFICO YA EXISTE, SOLO ACTUALIZAMOS LOS DATOS (No se rompe)
-        macdChart.data.labels = labels;
-        macdChart.data.datasets[0].data = histValues;
-        macdChart.data.datasets[0].backgroundColor = bgColors;
-        macdChart.update('none'); // Actualización ultra rápida sin animaciones pesadas
-    } else {
-        // SI ES LA PRIMERA VEZ, LO INSTANCIAMOS
-        macdChart = new Chart(ctxMacd, {
-            type: 'bar',
-            data: {
-                labels: labels,
-                datasets: [{ data: histValues, backgroundColor: bgColors, borderWidth: 0 }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: { legend: { display: false } },
-                scales: { 
-                    x: { display: false }, 
-                    y: { grid: { color: '#2a2e39' }, ticks: { color: '#787b86', font: { size: 8 } } } 
-                }
-            }
-        });
-    }
+    if (macdChart) macdChart.destroy();
+    macdChart = new Chart(ctxMacd, {
+        type: 'bar',
+        data: {
+            labels: labels,
+            datasets: [{ data: histValues, backgroundColor: bgColors, borderWidth: 0 }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { display: false } },
+            scales: { x: { display: false }, y: { grid: { color: '#2a2e39' }, ticks: { color: '#787b86', font: { size: 8 } } } }
+        }
+    });
 
-    // 2. GESTIÓN DEL GRÁFICO ADX & DMI
+    // 2. Renderizar Gráfico ADX & DMI
     const ctxAdx = document.getElementById('adxChart').getContext('2d');
-    if (adxChart) {
-        // ACTUALIZACIÓN DE DATOS PARA ADX
-        adxChart.data.labels = labels;
-        adxChart.data.datasets[0].data = histData.map(d => d.adx);
-        adxChart.data.datasets[1].data = histData.map(d => d.dmiPlus);
-        adxChart.data.datasets[2].data = histData.map(d => d.dmiMinus);
-        adxChart.update('none');
-    } else {
-        // INSTANCIA INICIAL PARA ADX
-        adxChart = new Chart(ctxAdx, {
-            type: 'line',
-            data: {
-                labels: labels,
-                datasets: [
-                    { label: 'ADX', data: histData.map(d => d.adx), borderColor: '#f0b90b', borderWidth: 2, pointRadius: 0, fill: false },
-                    { label: 'DI+', data: histData.map(d => d.dmiPlus), borderColor: '#00ff88', borderWidth: 1, pointRadius: 0, fill: false },
-                    { label: 'DI-', data: histData.map(d => d.dmiMinus), borderColor: '#ff4d4d', borderWidth: 1, pointRadius: 0, fill: false }
-                ]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: { legend: { display: false } },
-                scales: { 
-                    x: { display: false }, 
-                    y: { grid: { color: '#2a2e39' }, ticks: { color: '#787b86', font: { size: 8 } } } 
-                }
-            }
-        });
-    }
+    if (adxChart) adxChart.destroy();
+    adxChart = new Chart(ctxAdx, {
+        type: 'line',
+        data: {
+            labels: labels,
+            datasets: [
+                { label: 'ADX', data: histData.map(d => d.adx), borderColor: '#f0b90b', borderWidth: 2, pointRadius: 0, fill: false },
+                { label: 'DI+', data: histData.map(d => d.dmiPlus), borderColor: '#00ff88', borderWidth: 1, pointRadius: 0, fill: false },
+                { label: 'DI-', data: histData.map(d => d.dmiMinus), borderColor: '#ff4d4d', borderWidth: 1, pointRadius: 0, fill: false }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { display: false } },
+            scales: { x: { display: false }, y: { grid: { color: '#2a2e39' }, ticks: { color: '#787b86', font: { size: 8 } } } }
+        }
+    });
 }
 
 function parseCoinGlassValue(str) {
