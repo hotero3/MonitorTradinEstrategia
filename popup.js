@@ -9,6 +9,9 @@ let lastHistSign = null;
 let currentPrice = 0;
 let entryData = JSON.parse(localStorage.getItem('active_trade')) || { price: 0, type: null, max: 0, min: 0 };
 
+// --- RESTAURADAS LAS VARIABLES GLOBALES CRÍTICAS PARA GRÁFICOS Y BOLLINGER ---
+let priceHistory = []; 
+
 // --- DETECTAR CAMBIO DE TEMPORALIDAD ---
 const tfSelector = document.getElementById('tf-select');
 if (tfSelector) {
@@ -91,18 +94,24 @@ async function updateDashboard() {
             const delta = lVal - sVal;
 
             let dDisp = Math.abs(delta) >= 1000 ? (delta/1000).toFixed(2) + "B" : delta.toFixed(1) + "M";
-            deltaEl.textContent = (delta >= 0 ? "+" : "") + dDisp;
-            document.getElementById('long-valor').textContent = current.deltaLong;
-            document.getElementById('short-valor').textContent = current.deltaShort;
+            if (deltaEl) deltaEl.textContent = (delta >= 0 ? "+" : "") + dDisp;
+            
+            const lVolEl = document.getElementById('long-valor');
+            if (lVolEl) lVolEl.textContent = current.deltaLong;
+            
+            const sVolEl = document.getElementById('short-valor');
+            if (sVolEl) sVolEl.textContent = current.deltaShort;
 
-            if (Math.abs(delta) >= alertThreshold && alertThreshold > 0) {
-                container.style.background = delta >= 0 ? "#003d21" : "#3d0000"; 
-                container.style.border = "2px solid #fff"; 
-                deltaEl.style.color = "#fff";
-                if (!isMuted && (Date.now() - lastAlertTime > 15000)) { sonarNotificacion(delta >= 0 ? 'LONG' : 'SHORT'); lastAlertTime = Date.now(); }
-            } else {
-                container.style.background = "#1e222d"; container.style.border = "none";
-                container.style.borderLeft = "4px solid #f0b90b"; deltaEl.style.color = delta >= 0 ? "#00ff88" : "#ff4d4d";
+            if (container && deltaEl) {
+                if (Math.abs(delta) >= alertThreshold && alertThreshold > 0) {
+                    container.style.background = delta >= 0 ? "#003d21" : "#3d0000"; 
+                    container.style.border = "2px solid #fff"; 
+                    deltaEl.style.color = "#fff";
+                    if (!isMuted && (Date.now() - lastAlertTime > 15000)) { sonarNotificacion(delta >= 0 ? 'LONG' : 'SHORT'); lastAlertTime = Date.now(); }
+                } else {
+                    container.style.background = "#1e222d"; container.style.border = "none";
+                    container.style.borderLeft = "4px solid #f0b90b"; deltaEl.style.color = delta >= 0 ? "#00ff88" : "#ff4d4d";
+                }
             }
         }
 
@@ -121,10 +130,10 @@ async function updateDashboard() {
             return isNaN(date) ? "" : date.getHours() + ":" + String(date.getMinutes()).padStart(2, '0');
         }));
 
-        statusDot.style.color = '#00ff88';
+        if (statusDot) statusDot.style.color = '#00ff88';
     } catch (e) { 
         console.error("Error en Dashboard:", e);
-        statusDot.style.color = '#ff4d4d'; 
+        if (statusDot) statusDot.style.color = '#ff4d4d'; 
     }
 }
 
@@ -154,7 +163,6 @@ function triggerFlash(elId, color) {
     if (el) { el.style.boxShadow = `0 0 20px ${color}`; setTimeout(() => { el.style.boxShadow = "none"; }, 500); }
 }
 
-// --- ESTRATEGIA INTEGRADA DE MANERA SEGURA CON LAS BANDAS DEL SERVIDOR ---
 function updateStrategyUI(latest, allData) {
     const signalEl = document.getElementById('main-signal');
     const adxTag = document.getElementById('strength-tag');
@@ -174,7 +182,6 @@ function updateStrategyUI(latest, allData) {
     let advertenciaReversion = "";
     let colorAdvertencia = "";
 
-    // Evaluar usando las bandas estables inyectadas por el servidor de Python
     if (window.localBbUpper && window.localBbLower && currentPrice > 0) {
         precioPorDebajoBandaLower = currentPrice <= window.localBbLower;
         precioPorEncimaBandaUpper = currentPrice >= window.localBbUpper;
@@ -208,7 +215,6 @@ function updateStrategyUI(latest, allData) {
     adxTag.textContent = `ADX: ${Number(latest.adx).toFixed(1)} (${adxAcelerando ? '▲' : '▼'})`;
     adxTag.className = isStrong ? 'text-green' : '';
 
-    // SEÑAL MAESTRA DE ENTRADA CON EL FILTRO ANTITRAMPAS
     if (isStrong && adxAcelerando && histUp && dmiBull) {
         if (precioPorEncimaBandaUpper) {
             signalEl.textContent = "ESPERAR RECORTE (Riesgo de Rechazo)";
@@ -300,6 +306,10 @@ async function updateLivePrice() {
         const livePriceEl = document.getElementById('live-price');
         if (livePriceEl) livePriceEl.textContent = currentPrice.toLocaleString('en-US', { minimumFractionDigits: 2 });
 
+        // --- RESTAURADO: Llenado histórico dinámico de precios para Bollinger locales si son requeridos ---
+        priceHistory.push(currentPrice);
+        if (priceHistory.length > 20) { priceHistory.shift(); }
+
         if (entryData.type) { updatePicos(currentPrice); calculatePnL(); }
     } catch (e) { console.error("Error Binance:", e); }
 }
@@ -364,26 +374,41 @@ function sonarNotificacion(tipo) {
     try {
         const osc = audioCtx.createOscillator(); const gain = audioCtx.createGain();
         osc.connect(gain); gain.connect(audioCtx.destination); const ahora = audioCtx.currentTime;
-        if (tipo === 'LONG') { osc.frequency.setValueAtTime(440, ahora); osc.frequency.exponentialRampToValueAtTime(880, ahora + 0.2); } 
+        if (tipo === 'LONG') { osc.frequency.setValueAtTime(440, ahora); osc.frequency.exponentialRampToValueAtTime(880, adored + 0.2); } 
         else { osc.frequency.setValueAtTime(880, ahora); osc.frequency.exponentialRampToValueAtTime(440, ahora + 0.2); }
         osc.start(); gain.gain.exponentialRampToValueAtTime(0.0001, ahora + 0.5); osc.stop(ahora + 0.5);
     } catch(e) {}
 }
 
+// --- RESTAURADO EL PARSEO Y RENDERIZADO DEL DELTA COINGLASS ---
 function updateDeltaDisplay() {
     const savedDelta = localStorage.getItem('btcDeltaData');
     if (savedDelta) {
-        const data = JSON.parse(savedDelta); const lVal = parseCoinGlassValue(data.lStr); const sVal = parseCoinGlassValue(data.sStr); const delta = lVal - sVal;
-        const deltaValEl = document.getElementById('delta_val'); if (deltaValEl) deltaValEl.textContent = (delta >= 0 ? "+" : "") + (delta/1000).toFixed(2) + "B";
-        const longValEl = document.getElementById('long-valor'); if (longValEl) longValEl.textContent = data.lStr;
-        const shortValEl = document.getElementById('short-valor'); if (shortValEl) shortValEl.textContent = data.sStr;
+        try {
+            const data = JSON.parse(savedDelta); 
+            const lVal = parseCoinGlassValue(data.lStr); 
+            const sVal = parseCoinGlassValue(data.sStr); 
+            const delta = lVal - sVal;
+            
+            const deltaValEl = document.getElementById('delta_val'); 
+            if (deltaValEl) deltaValEl.textContent = (delta >= 0 ? "+" : "") + (delta/1000).toFixed(2) + "B";
+            
+            const longValEl = document.getElementById('long-valor'); 
+            if (longValEl) longValEl.textContent = data.lStr;
+            
+            const shortValEl = document.getElementById('short-valor'); 
+            if (shortValEl) shortValEl.textContent = data.sStr;
+        } catch(err) { console.error("Error parseando btcDeltaData:", err); }
     }
 }
 
 function parseCoinGlassValue(str) { if(!str) return 0; const num = parseFloat(str.replace(/[^0-9.]/g, '')); return str.includes('B') ? num * 1000 : num; }
 
+// --- INTERVALOS CORRETO DE RENDERIZACIÓN ---
 setInterval(updateDashboard, 1500);
 setInterval(updateLivePrice, 2000);
-setInterval(updateDeltaDisplay, 5000);
+setInterval(updateDeltaDisplay, 5000); // <-- ACTIVADO NUEVAMENTE
+
 updateLivePrice();
 updateDashboard();
+updateDeltaDisplay();
