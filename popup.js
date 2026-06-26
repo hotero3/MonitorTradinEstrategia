@@ -50,7 +50,8 @@ async function updateDashboard() {
         const data = await res.json();
         if (!data || data.length === 0) return;
 
-        const latest = data[0];
+        // Como el array viene de Pasado -> Presente, el último elemento es el actual en vivo:
+        const latest = data[data.length - 1];
         currentPrice = latest.precio;
 
         // Actualizar UI básica
@@ -63,11 +64,11 @@ async function updateDashboard() {
             updateDeltaDisplay();
         }
 
-        // Ejecutar lógica de estrategia con las bandas del servidor
+        // Ejecutar lógica de estrategia pasando el array cronológico correcto
         updateStrategyUI(latest, data);
         
-        // Renderizar Gráficos (invirtiendo el array para orden cronológico de izquierda a derecha)
-        renderCharts([...data].reverse());
+        // Renderizar Gráficos de forma limpia de izquierda a derecha
+        renderCharts(data);
         
         // Seguimiento de Trade Activo si existe
         updateActiveTradeLogic();
@@ -85,13 +86,13 @@ function updateStrategyUI(latest, allData) {
     
     if (!signalEl || !adxTag || !allData || allData.length < 2) return;
     
-    const previous = allData[1];
+    // Vela anterior es la penúltima
+    const previous = allData[allData.length - 2];
     const isStrong = latest.adx > 22;
     const adxAcelerando = latest.adx > previous.adx; 
     const histUp = latest.histogram > 0;
     const dmiBull = latest.dmiPlus > latest.dmiMinus;
     
-    // Leemos las bandas calculadas de forma ultra-estable por tu Python
     const upperBand = latest.bbUpper;
     const lowerBand = latest.bbLower;
     const precioActual = latest.precio; 
