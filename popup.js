@@ -123,4 +123,298 @@ async function updateDashboard() {
         const adxValsEl = document.getElementById('adx_vals');
         if (adxValsEl) adxValsEl.textContent = `${Number(current.adx).toFixed(1)} | ${Number(current.dmiPlus).toFixed(1)} | ${Number(current.dmiMinus).toFixed(1)}`;
 
-        const macdFullVals
+        const macdFullValsEl = document.getElementById('macd_full_vals');
+        if (macdFullValsEl) macdFullValsEl.textContent = `${Number(current.histogram).toFixed(2)} | ${Number(current.macdLine).toFixed(2)} | ${Number(current.signalLine).toFixed(2)}`;
+
+        // 5. RENDERIZAR GRÁFICOS (PROTEGIDOS)
+        try {
+            const revData = [...allData].reverse();
+            renderCharts(revData, revData.map(d => {
+                const date = new Date(d.tiempo);
+                return isNaN(date) ? "" : date.getHours() + ":" + String(date.getMinutes()).padStart(2, '0');
+            }));
+        } catch(err) { console.error("Error crítico pintando Chart.js:", err); }
+
+        if (statusDot) statusDot.style.color = '#00ff88';
+    } catch (e) { 
+        console.error("Error General en Dashboard:", e);
+        if (statusDot) statusDot.style.color = '#ff4d4d'; 
+    }
+}
+
+function checkMACDAlerts(curr, prev) {
+    try {
+        const signalEl = document.getElementById('main-signal');
+        const currentSign = Math.sign(curr.histogram);
+        const prevSign = Math.sign(prev.histogram);
+
+        if (lastHistSign !== null && currentSign !== prevSign) {
+            const esLong = currentSign > 0;
+            triggerFlash('main-signal', esLong ? "#00ff88" : "#ff4d4d");
+            const deltaEl = document.getElementById('delta_val');
+            const deltaVal = deltaEl ? parseFloat(deltaEl.textContent) || 0 : 0;
+            if (curr.adx > 18 || Math.abs(deltaVal) > alertThreshold) { sonarNotificacion(esLong ? 'LONG' : 'SHORT'); }
+        }
+        lastHistSign = currentSign;
+
+        if (signalEl) {
+            const gap = Math.abs(curr.macdLine - curr.signalLine);
+            if (gap < 0.12) { signalEl.style.border = "2px solid #f0b90b"; signalEl.classList.add('blink-border'); } 
+            else { signalEl.style.border = "none"; signalEl.classList.remove('blink-border'); }
+        }
+    } catch(e) { console.error("Error en checkMACDAlerts:", e); }
+}
+
+function triggerFlash(elId, color) {
+    const el = document.getElementById(elId);
+    if (el) { el.style.boxShadow = `0 0 20px ${color}`; setTimeout(() => { el.style.boxShadow = "none"; }, 500); }
+}
+
+function updateStrategyUI(latest, allData) {
+    try {
+        const signalEl = document.getElementById('main-signal');
+        const adxTag = document.getElementById('strength-tag');
+        const alertRevEl = document.getElementById('alert-reversion'); 
+        
+        if (!signalEl || !allData || allData.length < 2) return;
+        
+        const previous = allData[1];
+        const isStrong = latest.adx > 22;
+        const adxAcelerando = latest.adx > previous.adx; 
+        
+        const histUp = latest.histogram > 0;
+        const dmiBull = latest.dmiPlus > latest.dmiMinus;
+        
+        let precioPorDebajoBandaLower = false;
+        let precioPorEncimaBandaUpper = false;
+        let advertenciaReversion = "";
+        let colorAdvertencia = "";
+
+        if (window.localBbUpper && window.localBbLower && currentPrice > 0) {
+            precioPorDebajoBandaLower = currentPrice <= window.localBbLower;
+            precioPorEncimaBandaUpper = currentPrice >= window.localBbUpper;
+
+            if (precioPorDebajoBandaLower && !histUp) {
+                advertenciaReversion = "⚠️ ALERTA: Precio bajo la Banda Inferior. Posible REVERSIÓN AL ALZA.";
+                colorAdvertencia = "#f0b90b"; 
+            } else if (precioPorEncimaBandaUpper && histUp) {
+                advertenciaReversion = "⚠️ ALERTA: Precio sobre la Banda Superior. Posible REVERSIÓN A LA BAJA.";
+                colorAdvertencia = "#f0b90b";
+            } else if (precioPorDebajoBandaLower && histUp && dmiBull && isStrong) {
+                advertenciaReversion = "🔥 CONFLUENCIA PERFECTA: Ruptura alcista desde soporte Bollinger.";
+                colorAdvertencia = "#00ff88"; 
+            } else if (precioPorEncimaBandaUpper && !histUp && !dmiBull && isStrong) {
+                advertenciaReversion = "💥 CONFLUENCIA PERFECTA: Ruptura bajista desde resistencia Bollinger.";
+                colorAdvertencia = "#ff4d4d"; 
+            }
+        }
+
+        if (alertRevEl) {
+            if (advertenciaReversion !== "") {
+                alertRevEl.textContent = advertenciaReversion;
+                alertRevEl.style.border = `1px solid ${colorAdvertencia}`;
+                alertRevEl.style.color = colorAdvertencia;
+                alertRevEl.style.display = "block";
+            } else { alertRevEl.style.display = "none"; }
+        }
+
+        if (adxTag) {
+            adxTag.textContent = `ADX: ${Number(latest.adx).toFixed(1)} (${adxAcelerando ? '▲' : '▼'})`;
+            adxTag.className = isStrong ? 'text-green' : '';
+        }
+
+        if (isStrong && adxAcelerando && histUp && dmiBull) {
+            if (precioPorEncimaBandaUpper) {
+                signalEl.textContent = "ESPERAR RECORTE (Riesgo de Rechazo)";
+                signalEl.style.background = "rgba(240, 185, 11, 0.1)"; signalEl.style.color = "#f0b90b";
+            } else {
+                signalEl.textContent = "POSIBLE LONG";
+                signalEl.style.background = "rgba(0, 255, 136, 0.2)"; signalEl.style.color = "#00ff88";
+            }
+        } 
+        else if (isStrong && adxAcelerando && !histUp && !dmiBull) {
+            if (precioPorDebajoBandaLower) {
+                signalEl.textContent = "ESPERAR REBOTE (Soporte Mayor)";
+                signalEl.style.background = "rgba(240, 185, 11, 0.1)"; signalEl.style.color = "#f0b90b";
+            } else {
+                signalEl.textContent = "POSIBLE SHORT";
+                signalEl.style.background = "rgba(255, 77, 77, 0.2)"; signalEl.style.color = "#ff4d4d";
+            }
+        } else {
+            signalEl.textContent = "ESPERANDO...";
+            signalEl.style.background = "#333"; signalEl.style.color = "#fff";
+        }
+    } catch(e) { console.error("Error en updateStrategyUI:", e); }
+}
+
+function renderCharts(data, labels) {
+    if (!window.Chart) { console.warn("Chart.js no está cargado en el HTML."); return; }
+    
+    const opt = { 
+        responsive: true, maintainAspectRatio: false, animation: false,
+        plugins: { legend: { display: false } },
+        scales: { 
+            x: { display: false }, 
+            y: { grid: { color: '#2a2e39' }, ticks: { color: '#888', font: { size: 8 } } } 
+        }
+    };
+
+    const canvasM = document.getElementById('macdChart');
+    if (canvasM) {
+        try {
+            const ctxM = canvasM.getContext('2d');
+            const hD = data.map(d => Number(d.histogram));
+            const histogramColors = hD.map((v, idx) => {
+                if (idx === 0) return v >= 0 ? '#35948E' : '#ff4d4d'; 
+                const prevV = hD[idx - 1]; 
+                return v >= 0 ? (v >= prevV ? '#35948E' : '#FA6969') : (v <= prevV ? '#ff4d4d' : '#26a69a');
+            });
+
+            if (Chart.getChart(canvasM)) { Chart.getChart(canvasM).destroy(); }
+
+            macdChart = new Chart(ctxM, {
+                data: {
+                    labels,
+                    datasets: [
+                        { type: 'bar', data: hD, backgroundColor: histogramColors }, 
+                        { type: 'line', data: data.map(d => d.macdLine), borderColor: '#2196f3', borderWidth: 1.5, pointRadius: 0 },
+                        { type: 'line', data: data.map(d => d.signalLine), borderColor: '#f0b90b', borderWidth: 1.5, pointRadius: 0 }
+                    ]
+                },
+                options: opt
+            });
+        } catch(err) { console.error("Fallo al inicializar gráfico MACD:", err); }
+    }
+
+    const canvasA = document.getElementById('adxChart');
+    if (canvasA) {
+        try {
+            const ctxA = canvasA.getContext('2d');
+            const adxDatasets = [
+                { data: data.map(d => d.adx), borderColor: '#f0b90b', borderWidth: 2, pointRadius: 0 },
+                { data: data.map(d => d.dmiPlus), borderColor: '#00ff88', borderWidth: 1.5, pointRadius: 0, fill: false },
+                { data: data.map(d => d.dmiMinus), borderColor: '#ff4d4d', borderWidth: 1.5, pointRadius: 0, fill: false }
+            ];
+
+            if (Chart.getChart(canvasA)) { Chart.getChart(canvasA).destroy(); }
+
+            adxChart = new Chart(ctxA, {
+                type: 'line',
+                data: { labels, datasets: adxDatasets },
+                options: { ...opt, scales: { y: { min: 0, max: 60 } } }
+            });
+        } catch(err) { console.error("Fallo al inicializar gráfico ADX:", err); }
+    }
+}
+
+async function updateLivePrice() {
+    try {
+        const response = await fetch('https://api.binance.com/api/v3/ticker/price?symbol=BTCUSDT');
+        const data = await response.json();
+        currentPrice = parseFloat(data.price);
+
+        const livePriceEl = document.getElementById('live-price');
+        if (livePriceEl) livePriceEl.textContent = currentPrice.toLocaleString('en-US', { minimumFractionDigits: 2 });
+
+        priceHistory.push(currentPrice);
+        if (priceHistory.length > 25) { priceHistory.shift(); }
+
+        if (entryData.type) { updatePicos(currentPrice); calculatePnL(); }
+    } catch (e) { console.error("Error API Binance:", e); }
+}
+
+function updatePicos(price) {
+    let updated = false;
+    if (entryData.max === 0) { entryData.max = price; updated = true; }
+    if (entryData.min === 0) { entryData.min = price; updated = true; }
+    if (price > entryData.max) { entryData.max = price; updated = true; }
+    if (price < entryData.min) { entryData.min = price; updated = true; }
+
+    if (updated) { localStorage.setItem('active_trade', JSON.stringify(entryData)); renderPicosUI(); }
+}
+
+function calculatePnL() {
+    if (!entryData.price) return;
+    let pnlBase = ((entryData.type === 'LONG' ? (currentPrice - entryData.price) : (entryData.price - currentPrice)) / entryData.price);
+    let pnlPercent = pnlBase * 100 * 20; 
+
+    const pnlEl = document.getElementById('pnl-val');
+    if (pnlEl) { pnlEl.textContent = (pnlPercent >= 0 ? "+" : "") + pnlPercent.toFixed(2) + "%"; pnlEl.style.color = pnlPercent >= 0 ? "#00ff88" : "#ff4d4d"; }
+}
+
+function renderPicosUI() {
+    if (!entryData.max || !entryData.min || !entryData.price) return;
+    const calcVar = (pico) => (((entryData.type === 'LONG' ? (pico - entryData.price) : (entryData.price - pico)) / entryData.price) * 100 * 20).toFixed(2);
+    
+    const maxValEl = document.getElementById('max-val'); if (maxValEl) maxValEl.textContent = `${entryData.max.toFixed(2)} (${calcVar(entryData.max)}%)`;
+    const minValEl = document.getElementById('min-val'); if (minValEl) minValEl.textContent = `${entryData.min.toFixed(2)} (${calcVar(entryData.min)}%)`;
+}
+
+function saveTrade(type) {
+    entryData = { price: currentPrice, type: type, max: currentPrice, min: currentPrice };
+    localStorage.setItem('active_trade', JSON.stringify(entryData));
+    showTradeUI(); renderPicosUI();
+}
+
+const btnLong = document.getElementById('btn-long'); if (btnLong) btnLong.onclick = () => saveTrade('LONG');
+const btnShort = document.getElementById('btn-short'); if (btnShort) btnShort.onclick = () => saveTrade('SHORT');
+const btnClear = document.getElementById('btn-clear');
+if (btnClear) {
+    btnClear.onclick = () => {
+        localStorage.removeItem('active_trade');
+        entryData = { price: 0, type: null, max: 0, min: 0 }; 
+        const pnlDisplayEl = document.getElementById('pnl-display'); if (pnlDisplayEl) pnlDisplayEl.style.display = 'none';
+    };
+}
+
+function showTradeUI() {
+    const pnlDisplayEl = document.getElementById('pnl-display'); if (pnlDisplayEl) pnlDisplayEl.style.display = 'block';
+    const info = document.getElementById('entry-info');
+    if (info) { info.textContent = `${entryData.type} @ ${entryData.price.toFixed(2)}`; info.style.color = entryData.type === 'LONG' ? '#00ff88' : '#ff4d4d'; }
+    renderPicosUI();
+}
+
+const savedTrade = localStorage.getItem('active_trade');
+if (savedTrade) { entryData = JSON.parse(savedTrade); showTradeUI(); } 
+else { entryData = { price: 0, type: null, max: 0, min: 0 }; }
+
+function sonarNotificacion(tipo) {
+    if (isMuted) return;
+    try {
+        const osc = audioCtx.createOscillator(); const gain = audioCtx.createGain();
+        osc.connect(gain); gain.connect(audioCtx.destination); const ahora = audioCtx.currentTime;
+        if (tipo === 'LONG') { osc.frequency.setValueAtTime(440, ahora); osc.frequency.exponentialRampToValueAtTime(880, ahora + 0.2); } 
+        else { osc.frequency.setValueAtTime(880, ahora); osc.frequency.exponentialRampToValueAtTime(440, ahora + 0.2); }
+        osc.start(); gain.gain.exponentialRampToValueAtTime(0.0001, ahora + 0.5); osc.stop(ahora + 0.5);
+    } catch(e) {}
+}
+
+// --- RENDIMIENTO DE DELTA INTEGRADO MEDIANTE LOCALSTORAGE (COMPLEMENTO) ---
+function updateDeltaDisplay() {
+    const savedDelta = localStorage.getItem('btcDeltaData');
+    if (savedDelta) {
+        try {
+            const data = JSON.parse(savedDelta); 
+            const lVal = parseCoinGlassValue(data.lStr); 
+            const sVal = parseCoinGlassValue(data.sStr); 
+            const delta = lVal - sVal;
+            
+            const deltaValEl = document.getElementById('delta_val'); 
+            if (deltaValEl) deltaValEl.textContent = (delta >= 0 ? "+" : "") + (delta/1000).toFixed(2) + "B";
+            
+            const longValEl = document.getElementById('long-valor'); if (longValEl) longValEl.textContent = data.lStr;
+            const shortValEl = document.getElementById('short-valor'); if (shortValEl) shortValEl.textContent = data.sStr;
+        } catch(err) { console.error("Error parseando btcDeltaData local:", err); }
+    }
+}
+
+function parseCoinGlassValue(str) { if(!str) return 0; const num = parseFloat(str.replace(/[^0-9.]/g, '')); return str.includes('B') ? num * 1000 : num; }
+
+// --- INTERVALOS CORRETO DE RENDERIZACIÓN ---
+setInterval(updateDashboard, 1500);
+setInterval(updateLivePrice, 2000);
+setInterval(updateDeltaDisplay, 5000); 
+
+updateLivePrice();
+updateDashboard();
+updateDeltaDisplay();
