@@ -8,12 +8,10 @@ let lastDelta = null;
 let lastHistSign = null;
 let currentPrice = 0;
 let entryData = JSON.parse(localStorage.getItem('active_trade')) || { price: 0, type: null, max: 0, min: 0 };
-let priceHistory = []; 
 
 // --- DETECTAR CAMBIO DE TEMPORALIDAD ---
 const tfSelector = document.getElementById('tf-select');
 if (tfSelector) {
-    // Si el usuario cambia el select, actualizamos la variable global y forzamos refresco del Dashboard
     tfSelector.onchange = (e) => {
         currentTimeframe = e.target.value;
         updateDashboard();
@@ -44,13 +42,16 @@ initAlertControls();
 async function updateDashboard() {
     const statusDot = document.getElementById('status');
     try {
-        // Concatenamos el parámetro de la temporalidad elegida en la petición de fetch
         const response = await fetch(`${BASE_WEB_APP_URL}?interval=${currentTimeframe}`);
         const allData = await response.json(); 
         if (!allData || allData.length < 2) return;
 
         const current = allData[0];
         const previous = allData[1];
+
+        // Guardar bandas calculadas del servidor globales de manera segura
+        window.localBbUpper = current.bbUpper;
+        window.localBbLower = current.bbLower;
 
         // --- PROCESAMIENTO RSI CON MEJORA VISUAL DE FLECHAS EN VIVO ---
         if (current.rsi !== undefined) {
@@ -60,21 +61,18 @@ async function updateDashboard() {
             const rsiTextElement = document.getElementById('rsi-text');
 
             if (rsiElement && rsiTextElement) {
-                // Determinar dirección del impulso con una flecha estética
                 let flecha = "";
                 let colorFlecha = "";
                 if (rsiVal > rsiPrevVal) {
                     flecha = " ▲";
-                    colorFlecha = "#00ff88"; // Verde si sube
+                    colorFlecha = "#00ff88"; 
                 } else if (rsiVal < rsiPrevVal) {
                     flecha = " ▼";
-                    colorFlecha = "#ff4d4d"; // Rojo si baja
+                    colorFlecha = "#ff4d4d"; 
                 }
 
-                // Pintar el número limpio
                 rsiElement.textContent = rsiVal.toFixed(2);
 
-                // Configurar etiquetas de estados y aplicar la flecha al texto descriptivo
                 if (rsiVal >= 70) { rsiTextElement.innerHTML = `Sobre compra <span style="color:${colorFlecha}">${flecha}</span>`; rsiTextElement.style.color = "#35948E"; rsiElement.style.color = "#35948E"; }
                 else if (rsiVal >= 55) { rsiTextElement.innerHTML = `Compra fuerte <span style="color:${colorFlecha}">${flecha}</span>`; rsiTextElement.style.color = "#26a69a"; rsiElement.style.color = "#26a69a"; }
                 else if (rsiVal > 45 && rsiVal < 55) { rsiTextElement.innerHTML = `Neutral <span style="color:${colorFlecha}">${flecha}</span>`; rsiTextElement.style.color = "#f0b90b"; rsiElement.style.color = "#f0b90b"; }
@@ -156,12 +154,10 @@ function triggerFlash(elId, color) {
     if (el) { el.style.boxShadow = `0 0 20px ${color}`; setTimeout(() => { el.style.boxShadow = "none"; }, 500); }
 }
 
-// --- ESTRATEGIA CON ALERTAS VISUALES DE CONFLUENCIA Y REVERSIÓN ---
+// --- ESTRATEGIA INTEGRADA DE MANERA SEGURA CON LAS BANDAS DEL SERVIDOR ---
 function updateStrategyUI(latest, allData) {
     const signalEl = document.getElementById('main-signal');
     const adxTag = document.getElementById('strength-tag');
-    
-    // Asegúrate de tener un contenedor en tu HTML con id="alert-reversion" para mostrar estas advertencias
     const alertRevEl = document.getElementById('alert-reversion'); 
     
     if (!signalEl || !adxTag || !allData || allData.length < 2) return;
@@ -173,33 +169,31 @@ function updateStrategyUI(latest, allData) {
     const histUp = latest.histogram > 0;
     const dmiBull = latest.dmiPlus > latest.dmiMinus;
     
-    // Determinación de posición exacta respecto a las Bandas de Bollinger Locales
     let precioPorDebajoBandaLower = false;
     let precioPorEncimaBandaUpper = false;
     let advertenciaReversion = "";
     let colorAdvertencia = "";
 
-    if (window.localBbUpper && window.localBbLower) {
+    // Evaluar usando las bandas estables inyectadas por el servidor de Python
+    if (window.localBbUpper && window.localBbLower && currentPrice > 0) {
         precioPorDebajoBandaLower = currentPrice <= window.localBbLower;
         precioPorEncimaBandaUpper = currentPrice >= window.localBbUpper;
 
-        // --- LÓGICA DE DETECCIÓN DE REVERSIÓN / SOBREEXTENSIÓN ---
         if (precioPorDebajoBandaLower && !histUp) {
             advertenciaReversion = "⚠️ ALERTA: Precio bajo la Banda Inferior. Posible REVERSIÓN AL ALZA (Agotamiento Short).";
-            colorAdvertencia = "#f0b90b"; // Amarillo preventivo
+            colorAdvertencia = "#f0b90b"; 
         } else if (precioPorEncimaBandaUpper && histUp) {
             advertenciaReversion = "⚠️ ALERTA: Precio sobre la Banda Superior. Posible REVERSIÓN A LA BAJA (Agotamiento Long).";
             colorAdvertencia = "#f0b90b";
         } else if (precioPorDebajoBandaLower && histUp && dmiBull && isStrong) {
             advertenciaReversion = "🔥 CONFLUENCIA PERFECTA: Ruptura alcista desde soporte extremo de Bollinger.";
-            colorAdvertencia = "#00ff88"; // Verde confirmación rápida
+            colorAdvertencia = "#00ff88"; 
         } else if (precioPorEncimaBandaUpper && !histUp && !dmiBull && isStrong) {
             advertenciaReversion = "💥 CONFLUENCIA PERFECTA: Ruptura bajista desde resistencia extrema de Bollinger.";
-            colorAdvertencia = "#ff4d4d"; // Rojo confirmación rápida
+            colorAdvertencia = "#ff4d4d"; 
         }
     }
 
-    // Actualizar el contenedor de alertas visuales de reversión
     if (alertRevEl) {
         if (advertenciaReversion !== "") {
             alertRevEl.textContent = advertenciaReversion;
@@ -207,16 +201,14 @@ function updateStrategyUI(latest, allData) {
             alertRevEl.style.color = colorAdvertencia;
             alertRevEl.style.display = "block";
         } else {
-            alertRevEl.style.display = "none"; // Ocultar si el precio está en zona segura central
+            alertRevEl.style.display = "none"; 
         }
     }
 
-    // Mapeo en el tag del ADX
     adxTag.textContent = `ADX: ${Number(latest.adx).toFixed(1)} (${adxAcelerando ? '▲' : '▼'})`;
     adxTag.className = isStrong ? 'text-green' : '';
 
-    // --- SEÑAL MAESTRA DE ENTRADA CON FILTRO ANTITRAMPAS ---
-    // Si hay fuerza, histograma positivo, DMI comprador, pero el precio ya está extremadamente ARRIBA de las bandas, congelamos el LONG.
+    // SEÑAL MAESTRA DE ENTRADA CON EL FILTRO ANTITRAMPAS
     if (isStrong && adxAcelerando && histUp && dmiBull) {
         if (precioPorEncimaBandaUpper) {
             signalEl.textContent = "ESPERAR RECORTE (Riesgo de Rechazo)";
@@ -228,7 +220,6 @@ function updateStrategyUI(latest, allData) {
             signalEl.style.color = "#00ff88";
         }
     } 
-    // Si hay fuerza, histograma negativo, DMI vendedor, pero el precio ya está extremadamente ABAJO de las bandas, congelamos el SHORT.
     else if (isStrong && adxAcelerando && !histUp && !dmiBull) {
         if (precioPorDebajoBandaLower) {
             signalEl.textContent = "ESPERAR REBOTE (Soporte Mayor)";
@@ -308,18 +299,6 @@ async function updateLivePrice() {
 
         const livePriceEl = document.getElementById('live-price');
         if (livePriceEl) livePriceEl.textContent = currentPrice.toLocaleString('en-US', { minimumFractionDigits: 2 });
-        
-        priceHistory.push(currentPrice);
-        if (priceHistory.length > 20) { priceHistory.shift(); }
-
-        if (priceHistory.length === 20) {
-            const sum = priceHistory.reduce((a, b) => a + b, 0);
-            const sma = sum / 20;
-            const variance = priceHistory.reduce((a, b) => a + Math.pow(b - sma, 2), 0) / 20;
-            const stdDev = Math.sqrt(variance);
-            window.localBbUpper = sma + (2 * stdDev);
-            window.localBbLower = sma - (2 * stdDev);
-        }
 
         if (entryData.type) { updatePicos(currentPrice); calculatePnL(); }
     } catch (e) { console.error("Error Binance:", e); }
