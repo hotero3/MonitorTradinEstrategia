@@ -42,7 +42,6 @@ initAlertControls();
 async function updateDashboard() {
     const statusDot = document.getElementById('status');
     try {
-        // Concatenamos el parámetro de la temporalidad elegida en la petición de fetch
         const response = await fetch(`${BASE_WEB_APP_URL}?interval=${currentTimeframe}`);
         const allData = await response.json(); 
         if (!allData || allData.length < 2) return;
@@ -50,7 +49,7 @@ async function updateDashboard() {
         const current = allData[0];
         const previous = allData[1];
 
-        // --- PROCESAMIENTO RSI CON MEJORA VISUAL DE FLECHAS EN VIVO ---
+        // --- PROCESAMIENTO RSI ---
         if (current.rsi !== undefined) {
             const rsiVal = Number(current.rsi);
             const rsiPrevVal = Number(previous.rsi);
@@ -151,12 +150,14 @@ function triggerFlash(elId, color) {
     if (el) { el.style.boxShadow = `0 0 20px ${color}`; setTimeout(() => { el.style.boxShadow = "none"; }, 500); }
 }
 
-// --- ESTRATEGIA CON ALERTAS VISUALES DE CONFLUENCIA Y REVERSIÓN ---
+// --- ESTRATEGIA PURA (ADX + DMI + MACD) ---
 function updateStrategyUI(latest, allData) {
     const signalEl = document.getElementById('main-signal');
     const adxTag = document.getElementById('strength-tag');
     const alertRevEl = document.getElementById('alert-reversion'); 
     
+    // Ocultar permanentemente el contenedor de reversiones si existe en el HTML
+    if (alertRevEl) alertRevEl.style.display = "none";
     if (!signalEl || !adxTag || !allData || allData.length < 2) return;
     
     const previous = allData[1];
@@ -165,69 +166,20 @@ function updateStrategyUI(latest, allData) {
     
     const histUp = latest.histogram > 0;
     const dmiBull = latest.dmiPlus > latest.dmiMinus;
-    
-    let precioPorDebajoBandaLower = false;
-    let precioPorEncimaBandaUpper = false;
-    let advertenciaReversion = "";
-    let colorAdvertencia = "";
-
-    // Mapeo directo y seguro desde las propiedades calculadas por el backend (v2.1)
-    if (latest.bbUpper !== undefined && latest.bbLower !== undefined) {
-        precioPorDebajoBandaLower = currentPrice <= latest.bbLower;
-        precioPorEncimaBandaUpper = currentPrice >= latest.bbUpper;
-
-        // --- LÓGICA DE DETECCIÓN DE REVERSIÓN / SOBREEXTENSIÓN ---
-        if (precioPorDebajoBandaLower && !histUp) {
-            advertenciaReversion = "⚠️ ALERTA: Precio bajo la Banda Inferior. Posible REVERSIÓN AL ALZA (Agotamiento Short).";
-            colorAdvertencia = "#f0b90b"; 
-        } else if (precioPorEncimaBandaUpper && histUp) {
-            advertenciaReversion = "⚠️ ALERTA: Precio sobre la Banda Superior. Posible REVERSIÓN A LA BAJA (Agotamiento Long).";
-            colorAdvertencia = "#f0b90b";
-        } else if (precioPorDebajoBandaLower && histUp && dmiBull && isStrong) {
-            advertenciaReversion = "🔥 CONFLUENCIA PERFECTA: Ruptura alcista desde soporte extremo de Bollinger.";
-            colorAdvertencia = "#00ff88"; 
-        } else if (precioPorEncimaBandaUpper && !histUp && !dmiBull && isStrong) {
-            advertenciaReversion = "💥 CONFLUENCIA PERFECTA: Ruptura bajista desde resistencia extrema de Bollinger.";
-            colorAdvertencia = "#ff4d4d"; 
-        }
-    }
-
-    if (alertRevEl) {
-        if (advertenciaReversion !== "") {
-            alertRevEl.textContent = advertenciaReversion;
-            alertRevEl.style.border = `1px solid ${colorAdvertencia}`;
-            alertRevEl.style.color = colorAdvertencia;
-            alertRevEl.style.display = "block";
-        } else {
-            alertRevEl.style.display = "none"; 
-        }
-    }
 
     adxTag.textContent = `ADX: ${Number(latest.adx).toFixed(1)} (${adxAcelerando ? '▲' : '▼'})`;
     adxTag.className = isStrong ? 'text-green' : '';
 
-    // --- SEÑAL MAESTRA DE ENTRADA CON FILTRO ANTITRAMPAS ---
+    // --- SEÑAL MAESTRA DE ENTRADA SIN FILTROS DE PRECIO EXTERNOS ---
     if (isStrong && adxAcelerando && histUp && dmiBull) {
-        if (precioPorEncimaBandaUpper) {
-            signalEl.textContent = "ESPERAR RECORTE (Riesgo de Rechazo)";
-            signalEl.style.background = "rgba(240, 185, 11, 0.1)";
-            signalEl.style.color = "#f0b90b";
-        } else {
-            signalEl.textContent = "POSIBLE LONG";
-            signalEl.style.background = "rgba(0, 255, 136, 0.2)";
-            signalEl.style.color = "#00ff88";
-        }
+        signalEl.textContent = "POSIBLE LONG";
+        signalEl.style.background = "rgba(0, 255, 136, 0.2)";
+        signalEl.style.color = "#00ff88";
     } 
     else if (isStrong && adxAcelerando && !histUp && !dmiBull) {
-        if (precioPorDebajoBandaLower) {
-            signalEl.textContent = "ESPERAR REBOTE (Soporte Mayor)";
-            signalEl.style.background = "rgba(240, 185, 11, 0.1)";
-            signalEl.style.color = "#f0b90b";
-        } else {
-            signalEl.textContent = "POSIBLE SHORT";
-            signalEl.style.background = "rgba(255, 77, 77, 0.2)";
-            signalEl.style.color = "#ff4d4d";
-        }
+        signalEl.textContent = "POSIBLE SHORT";
+        signalEl.style.background = "rgba(255, 77, 77, 0.2)";
+        signalEl.style.color = "#ff4d4d";
     } else {
         signalEl.textContent = "ESPERANDO...";
         signalEl.style.background = "#333";
@@ -321,6 +273,7 @@ function calculatePnL() {
     if (pnlEl) { pnlEl.textContent = (pnlPercent >= 0 ? "+" : "") + pnlPercent.toFixed(2) + "%"; pnlEl.style.color = pnlPercent >= 0 ? "#00ff88" : "#ff4d4d"; }
 }
 
+// Renderiza los porcentajes puros calculados de las variaciones del trade activo
 function renderPicosUI() {
     if (!entryData.max || !entryData.min || !entryData.price) return;
     const calcVar = (pico) => (((entryData.type === 'LONG' ? (pico - entryData.price) : (entryData.price - pico)) / entryData.price) * 100 * 20).toFixed(2);
