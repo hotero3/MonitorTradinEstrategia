@@ -10,15 +10,12 @@ let currentPrice = 0;
 let entryData = JSON.parse(localStorage.getItem('active_trade')) || { price: 0, type: null, max: 0, min: 0 };
 let priceHistory = []; 
 
-// --- DETECTAR CAMBIO DE TEMPORALIDAD ---
-const tfSelector = document.getElementById('tf-select');
+// --- DETECTAR CAMBIO DE TEMPORALIDAD ---\nconst tfSelector = document.getElementById('tf-select');
 if (tfSelector) {
     tfSelector.onchange = (e) => {
         currentTimeframe = e.target.value;
         updateDashboard();
     };
-} else {
-    console.warn("Falta el elemento 'tf-select' en el HTML. Se usará la temporalidad por defecto: " + currentTimeframe);
 }
 
 function initAlertControls() {
