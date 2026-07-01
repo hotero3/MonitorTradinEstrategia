@@ -6,6 +6,11 @@ let isMuted = false, alertThreshold = 100, lastAlertTime = 0;
 const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
 let lastDelta = null;
 let lastHistSign = null;
+// Control de duplicados visuales en el Frontend
+let JS_LAST_ALERT = {
+    "COD01": null, "COD02": null, "COD03": null, "COD04": null
+};
+
 let currentPrice = 0;
 let entryData = JSON.parse(localStorage.getItem('active_trade')) || { price: 0, type: null, max: 0, min: 0 };
 
@@ -104,6 +109,100 @@ async function updateDashboard() {
 
         checkMACDAlerts(current, previous);
         updateStrategyUI(current, allData);
+
+        // =====================================================================
+        // --- MOTOR VISUAL DE ALERTAS EN PANTALLA (COD01 - COD04) ---
+        // =====================================================================
+        if (allData.length >= 4) {
+            const actual = allData[0];
+            const v1 = allData[1];
+            const v2 = allData[2];
+            const v3 = allData[3];
+            const timestamp = actual.tiempo;
+            
+            // Función auxiliar para insertar la alerta arriba en la lista
+            const agregarAlertaVisual = (codigo, titulo, detalle, color) => {
+                const alertList = document.getElementById('alert-list');
+                const noAlerts = document.getElementById('no-alerts');
+                if (noAlerts) noAlerts.remove();
+
+                // Crear el elemento de la alerta
+                const horaActual = new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit', second:'2-digit'});
+                const alertaDiv = document.createElement('div');
+                alertaDiv.style.background = 'rgba(255,255,255,0.03)';
+                alertaDiv.style.borderLeft = `3px solid ${color}`;
+                alertaDiv.style.padding = '8px';
+                alertaDiv.style.marginBottom = '6px';
+                alertaDiv.style.borderRadius = '4px';
+                alertaDiv.innerHTML = `<b style="color:${color}">[${codigo}] ${titulo}</b> <span style="float:right; color:#666; font-size:10px;">${horaActual}</span><br><span style="color:#fff;">${detalle}</span>`;
+                
+                // Insertar al inicio para que la más reciente esté arriba
+                alertList.insertBefore(alertaDiv, alertList.firstChild);
+
+                // Limitar el historial en pantalla a las últimas 15 alertas para no saturar el navegador
+                if (alertList.children.length > 15) {
+                    alertList.removeChild(alertList.lastChild);
+                }
+
+                // Actualizar contador
+                const countEl = document.getElementById('alert-count');
+                if (countEl) countEl.textContent = alertList.children.length;
+            };
+
+            // --- COD01: RUPTURA DE MÁXIMO O MÍNIMO (10 VELAS) ---
+            const velasRango = allData.slice(1, 11);
+            if (velasRango.length >= 10) {
+                const preciosRango = velasRango.map(v => Number(v.precio));
+                const max10 = Math.max(...preciosRango);
+                const min10 = Math.min(...preciosRango);
+
+                if (actual.precio > max10 && JS_LAST_ALERT["COD01"] !== `MAX_${timestamp}`) {
+                    agregarAlertaVisual("COD01", `BREAKOUT MÁXIMO (${currentTimeframe}) 🚀`, `Precio rompió los $${max10.toLocaleString()} ➡️ <b>$${actual.precio.toLocaleString()}</b>`, "#00ff88");
+                    JS_LAST_ALERT["COD01"] = `MAX_${timestamp}`;
+                    triggerFlash('alert-panel', "#00ff88");
+                } else if (actual.precio < min10 && JS_LAST_ALERT["COD01"] !== `MIN_${timestamp}`) {
+                    agregarAlertaVisual("COD01", `BREAKOUT MÍNIMO (${currentTimeframe}) 📉`, `Precio rompió los $${min10.toLocaleString()} ➡️ <b>$${actual.precio.toLocaleString()}</b>`, "#ff4d4d");
+                    JS_LAST_ALERT["COD01"] = `MIN_${timestamp}`;
+                    triggerFlash('alert-panel', "#ff4d4d");
+                }
+            }
+
+            // --- COD02: GIRO DE MICRO-TENDENCIA MACD ---
+            const giroAlcista = (v3.histogram > v2.histogram && v2.histogram > v1.histogram) && (actual.histogram > v1.histogram);
+            const giroBajista = (v3.histogram < v2.histogram && v2.histogram < v1.histogram) && (actual.histogram < v1.histogram);
+
+            if (giroAlcista && JS_LAST_ALERT["COD02"] !== `UP_${timestamp}`) {
+                agregarAlertaVisual("COD02", `GIRO ALCISTA MACD (${currentTimeframe}) 🔄`, `Hist: ${v2.histogram} ➡️ ${v1.histogram} ➡️ <b>${actual.histogram}</b> (Precio: $${actual.precio})`, "#00ff88");
+                JS_LAST_ALERT["COD02"] = `UP_${timestamp}`;
+            } else if (giroBajista && JS_LAST_ALERT["COD02"] !== `DOWN_${timestamp}`) {
+                agregarAlertaVisual("COD02", `GIRO BAJISTA MACD (${currentTimeframe}) 🔄`, `Hist: ${v2.histogram} ➡️ ${v1.histogram} ➡️ <b>${actual.histogram}</b> (Precio: $${actual.precio})`, "#ff4d4d");
+                JS_LAST_ALERT["COD02"] = `DOWN_${timestamp}`;
+            }
+
+            // --- COD03: CRUCE DE ADX (UMBRAL 23) ---
+            const cruzaArriba23 = (v1.adx <= 23.0 && actual.adx > 23.0);
+            const cruzaAbajo23 = (v1.adx >= 23.0 && actual.adx < 23.0);
+
+            if ((cruzaArriba23 || cruzaAbajo23) && JS_LAST_ALERT["COD03"] !== `CROSS_${timestamp}`) {
+                const estado = cruzaArriba23 ? "MERCADO EN TENDENCIA 🏃‍♂️" : "MERCADO EN RANGO 🛑";
+                const color = cruzaArriba23 ? "#f0b90b" : "#888";
+                agregarAlertaVisual("COD03", `VOLATILIDAD ADX (${currentTimeframe}) ⚡`, `${estado} | ADX Actual: <b>${actual.adx}</b>`, color);
+                JS_LAST_ALERT["COD03"] = `CROSS_${timestamp}`;
+            }
+
+            // --- COD04: DIVERGENCIA FLASH RSI VS PRECIO ---
+            const divBajista = (actual.precio > v1.precio) && (actual.rsi < v1.rsi) && (v1.rsi >= 60);
+            const divAlcista = (actual.precio < v1.precio) && (actual.rsi > v1.rsi) && (v1.rsi <= 40);
+
+            if (divBajista && JS_LAST_ALERT["COD04"] !== `DIVB_${timestamp}`) {
+                agregarAlertaVisual("COD04", "DIVERGENCIA BAJISTA ⚠️", `Precio sube pero RSI baja (${v1.rsi} ➡️ <b>${actual.rsi}</b>) - Zona de Agotamiento`, "#ff9800");
+                JS_LAST_ALERT["COD04"] = `DIVB_${timestamp}`;
+            } else if (divAlcista && JS_LAST_ALERT["COD04"] !== `DIVA_${timestamp}`) {
+                agregarAlertaVisual("COD04", "DIVERGENCIA ALCISTA ⚠️", `Precio baja pero RSI sube (${v1.rsi} ➡️ <b>${actual.rsi}</b>) - Zona de Acumulación`, "#00ff88");
+                JS_LAST_ALERT["COD04"] = `DIVA_${timestamp}`;
+            }
+        }
+        // =====================================================================
 
         const adxValsEl = document.getElementById('adx_vals');
         if (adxValsEl) adxValsEl.textContent = `${Number(current.adx).toFixed(1)} | ${Number(current.dmiPlus).toFixed(1)} | ${Number(current.dmiMinus).toFixed(1)}`;
