@@ -423,8 +423,10 @@ function sonarNotificacion(tipo) {
 function updateDeltaDisplay() {
     const savedDelta = localStorage.getItem('btcDeltaData');
     if (savedDelta) {
-        const data = JSON.parse(savedDelta); const lVal = parseCoinGlassValue(data.lStr); const sVal = parseCoinGlassValue(data.sStr); const delta = lVal - sVal;
-        const deltaValEl = document.getElementById('delta_val'); if (deltaValEl) deltaValEl.textContent = (delta >= 0 ? "+" : "") + (delta/1000).toFixed(2) + "B";
+        const data = JSON.parse(savedDelta);
+        
+        // NO tocamos deltaValEl para evitar el parpadeo en vivo
+        // Actualizamos únicamente las etiquetas de texto de los extremos
         const longValEl = document.getElementById('long-valor'); if (longValEl) longValEl.textContent = data.lStr;
         const shortValEl = document.getElementById('short-valor'); if (shortValEl) shortValEl.textContent = data.sStr;
     }
