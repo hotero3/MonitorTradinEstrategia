@@ -110,6 +110,8 @@ async function updateDashboard() {
         checkMACDAlerts(current, previous);
         updateStrategyUI(current, allData);
 
+       
+
         // =====================================================================
         // --- MOTOR VISUAL DE ALERTAS EN PANTALLA (COD01 - COD04) ---
         // =====================================================================
@@ -369,7 +371,15 @@ function calculatePnL() {
     let pnlPercent = pnlBase * 100 * 20; 
 
     const pnlEl = document.getElementById('pnl-val');
-    if (pnlEl) { pnlEl.textContent = (pnlPercent >= 0 ? "+" : "") + pnlPercent.toFixed(2) + "%"; pnlEl.style.color = pnlPercent >= 0 ? "#00ff88" : "#ff4d4d"; }
+    if (pnlEl) { 
+        pnlEl.textContent = (pnlPercent >= 0 ? "+" : "") + pnlPercent.toFixed(2) + "%"; 
+        pnlEl.style.color = pnlPercent >= 0 ? "#00ff88" : "#ff4d4d"; 
+    }
+
+    // 🚀 LÍNEA AGREGADA: Actualiza la ganancia/pérdida en $USD al instante
+    if (typeof updatePnLCalculation === 'function') {
+        updatePnLCalculation(pnlPercent);
+    }
 }
 
 // Renderiza los porcentajes puros calculados de las variaciones del trade activo
@@ -429,6 +439,57 @@ function updateDeltaDisplay() {
         // Actualizamos únicamente las etiquetas de texto de los extremos
         const longValEl = document.getElementById('long-valor'); if (longValEl) longValEl.textContent = data.lStr;
         const shortValEl = document.getElementById('short-valor'); if (shortValEl) shortValEl.textContent = data.sStr;
+    }
+}
+
+// =====================================================================
+// --- LÓGICA CALCULADORA P&L EN VIVO ---
+// =====================================================================
+
+// 1. Cargar el capital guardado al iniciar la extensión
+document.addEventListener('DOMContentLoaded', () => {
+    const capitalInput = document.getElementById('capital-input');
+    const savedCapital = localStorage.getItem('user_trade_capital');
+    if (savedCapital && capitalInput) {
+        capitalInput.value = savedCapital;
+    }
+
+    // Guardar al hacer clic en el botón de actualizar
+    const updateBtn = document.getElementById('update-capital-btn');
+    if (updateBtn) {
+        updateBtn.addEventListener('click', () => {
+            const val = parseFloat(capitalInput.value) || 0;
+            localStorage.setItem('user_trade_capital', val);
+            // Efecto visual rápido de guardado
+            updateBtn.style.background = '#00ff88';
+            setTimeout(() => { updateBtn.style.background = '#f0b90b'; }, 500);
+            updatePnLCalculation(); // Forzar recálculo
+        });
+    }
+});
+
+// 2. Función para calcular y renderizar las ganancias/pérdidas en $USD
+function updatePnLCalculation(pnlPercentageCurrent = 0) {
+    const capitalInput = document.getElementById('capital-input');
+    const pnlDisplay = document.getElementById('pnl-usd-val');
+    
+    if (!capitalInput || !pnlDisplay) return;
+
+    const capital = parseFloat(capitalInput.value) || 0;
+    
+    // Fórmula: Monto USD * (Porcentaje / 100)
+    const pnlUSD = capital * (pnlPercentageCurrent / 100);
+
+    // Formatear texto y color según el resultado
+    if (pnlUSD > 0) {
+        pnlDisplay.textContent = `+$${pnlUSD.toFixed(2)}`;
+        pnlDisplay.style.color = "#00ff88"; // Verde
+    } else if (pnlUSD < 0) {
+        pnlDisplay.textContent = `-$${Math.abs(pnlUSD).toFixed(2)}`;
+        pnlDisplay.style.color = "#ff4d4d"; // Rojo
+    } else {
+        pnlDisplay.textContent = "$0.00";
+        pnlDisplay.style.color = "#aaa";    // Gris neutro
     }
 }
 
