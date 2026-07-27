@@ -55,22 +55,41 @@
   </div>
    
     <div id="pnl-display" style="display:none; margin-top: 8px; padding-top: 8px; border-top: 1px solid #333; text-align: center;">
-    <div id="entry-info" style="font-size: 10px; margin-bottom: 2px;"></div>
-    
-    <div id="pnl-val" style="font-size: 20px; font-weight: bold; margin-bottom: 6px;">0.00%</div>
-    
-    <div id="picos-container" style="font-size: 9px; display: flex; flex-direction: column; gap: 2px; background: rgba(0,0,0,0.2); padding: 5px; border-radius: 4px;">
-        <div style="display: flex; justify-content: space-between;">
-            <span style="color: #787b86;">Pico Máximo:</span>
-            <span id="max-val" style="color: #00ff88; font-family: monospace;">--</span>
-        </div>
-        <div style="display: flex; justify-content: space-between;">
-            <span style="color: #787b86;">Pico Mínimo:</span>
-            <span id="min-val" style="color: #ff4d4d; font-family: monospace;">--</span>
+      <div id="entry-info" style="font-size: 10px; margin-bottom: 2px;"></div>
+      
+      <div id="pnl-val" style="font-size: 20px; font-weight: bold; margin-bottom: 6px;">0.00%</div>
+      
+      <div id="picos-container" style="font-size: 9px; display: flex; flex-direction: column; gap: 2px; background: rgba(0,0,0,0.2); padding: 5px; border-radius: 4px;">
+          <div style="display: flex; justify-content: space-between;">
+              <span style="color: #787b86;">Pico Máximo:</span>
+              <span id="max-val" style="color: #00ff88; font-family: monospace;">--</span>
+          </div>
+          <div style="display: flex; justify-content: space-between;">
+              <span style="color: #787b86;">Pico Mínimo:</span>
+              <span id="min-val" style="color: #ff4d4d; font-family: monospace;">--</span>
+          </div>
+      </div>
+  </div>
+   <!-- CALCULADORA DE PROFIT / PÉRDIDA EN VIVO -->
+<div id="pnl-calc-widget" style="background: #1e222d; border-radius: 8px; padding: 10px 12px; margin-top: 10px; border: 1px solid #363c4e; display: flex; align-items: center; justify-content: space-between;">
+    <!-- Entrada de Monto -->
+    <div style="display: flex; flex-direction: column; gap: 4px;">
+        <span style="color: #888; font-size: 10px; font-weight: bold; text-transform: uppercase;">Monto Margen ($)</span>
+        <div style="display: flex; gap: 4px; align-items: center;">
+            <input type="number" id="capital-input" placeholder="100" value="100" style="width: 70px; background: #131722; border: 1px solid #444; color: #fff; padding: 4px 6px; border-radius: 4px; font-size: 12px; outline: none; text-align: center;">
+            <button id="update-capital-btn" style="background: #f0b90b; color: #000; border: none; padding: 4px 8px; border-radius: 4px; font-size: 11px; font-weight: bold; cursor: pointer;">✔</button>
         </div>
     </div>
+
+    <!-- Muestra del Profit / Pérdida en USD -->
+    <div style="text-align: right;">
+        <span style="color: #888; font-size: 10px; font-weight: bold; text-transform: uppercase;">P&L Estimado ($)</span>
+        <div id="pnl-usd-val" style="font-size: 16px; font-weight: bold; color: #aaa; margin-top: 2px;">$0.00</div>
+    </div>
 </div>
-</div>
+  </div>
+
+  
 
   <div id="dashboard">
     <div id="main-signal">CONECTANDO...</div>
